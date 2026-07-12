@@ -17,10 +17,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen bg-[#131313] items-center justify-center">
+      <div className="flex h-screen bg-background items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-2 border-[#00f0ff]/30 border-t-[#00f0ff] animate-spin" />
-          <p className="text-[13px] text-[#8e9192]">Loading AssetFlow…</p>
+          <div className="w-8 h-8 rounded-full border-2 border-[var(--accent)]/30 border-t-[var(--accent)] animate-spin" />
+          <p className="text-[13px] text-muted-foreground">Loading AssetFlow…</p>
         </div>
       </div>
     );
@@ -29,7 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen bg-[#131313] overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopNav />

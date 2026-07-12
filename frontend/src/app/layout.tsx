@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,21 +24,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>
-          {children}
-          <Toaster
-            theme="dark"
-            toastOptions={{
-              style: {
-                background: "#1c1b1b",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "#e5e2e1",
-              },
-            }}
-          />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster
+              theme="system"
+              toastOptions={{
+                classNames: {
+                  toast:
+                    "dark:bg-[#1c1b1b] dark:border-white/10 dark:text-[#e5e2e1] bg-white border-black/10 text-zinc-900",
+                },
+              }}
+            />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

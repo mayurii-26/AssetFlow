@@ -46,12 +46,12 @@ export default function Sidebar() {
     <motion.aside
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="relative flex flex-col h-screen bg-[#0e0e0e] border-r border-white/8 shrink-0 overflow-hidden z-20"
+      className="relative flex flex-col h-screen bg-[var(--surface-dim)] border-r border-border shrink-0 overflow-hidden z-20"
     >
-      {/* Logo / Org Name */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-white/8 min-h-[72px]">
-        <div className="w-8 h-8 rounded-lg bg-[#00f0ff]/20 flex items-center justify-center shrink-0">
-          <Zap className="w-4 h-4 text-[#00f0ff]" />
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
+        <div className="w-8 h-8 rounded-lg bg-[var(--accent)]/20 flex items-center justify-center shrink-0">
+          <Zap className="w-4 h-4 text-[var(--accent)]" />
         </div>
         <AnimatePresence>
           {!collapsed && (
@@ -60,12 +60,12 @@ export default function Sidebar() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="overflow-hidden"
+              className="font-bold text-[15px] text-foreground tracking-tight whitespace-nowrap"
             >
-              <p className="font-bold text-[14px] text-white tracking-tight whitespace-nowrap leading-tight">
+              <p className="font-bold text-[14px] text-foreground tracking-tight whitespace-nowrap leading-tight">
                 {user?.organization ?? "AssetFlow"}
               </p>
-              <p className="text-[10px] text-[#00f0ff] tracking-widest uppercase whitespace-nowrap mt-0.5">
+              <p className="text-[10px] text-[var(--accent)] tracking-widest uppercase whitespace-nowrap mt-0.5">
                 AssetFlow
               </p>
             </motion.div>
@@ -84,14 +84,14 @@ export default function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group relative",
                   active
-                    ? "bg-[#00f0ff]/10 text-[#00f0ff]"
-                    : "text-[#8e9192] hover:text-[#e5e2e1] hover:bg-white/5"
+                    ? "bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-[var(--input)]"
                 )}
               >
                 {active && (
                   <motion.div
                     layoutId="activeIndicator"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[#00f0ff] rounded-full"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-full"
                   />
                 )}
                 <Icon className="w-4.5 h-4.5 shrink-0" size={18} />
@@ -109,7 +109,7 @@ export default function Sidebar() {
                 </AnimatePresence>
                 {/* Tooltip when collapsed */}
                 {collapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-[#2a2a2a] text-[#e5e2e1] text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 border border-white/10">
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-[var(--surface-high)] text-foreground text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 border border-border">
                     {label}
                   </div>
                 )}
@@ -120,14 +120,14 @@ export default function Sidebar() {
       </nav>
 
       {/* User info + logout */}
-      <div className="px-2 pb-3 border-t border-white/8 pt-3 space-y-1">
+      <div className="px-2 pb-3 border-t border-border pt-3 space-y-1">
         {/* User card */}
         <div className={cn(
-          "flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/3",
+          "flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--input)]",
           collapsed && "justify-center px-0"
         )}>
-          <div className="w-7 h-7 rounded-full bg-[#00f0ff]/15 border border-[#00f0ff]/30 flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-[#00f0ff]">{user?.initials ?? "?"}</span>
+          <div className="w-7 h-7 rounded-full bg-[var(--accent)]/15 border border-[var(--accent)]/30 flex items-center justify-center shrink-0">
+            <span className="text-[10px] font-bold text-[var(--accent)]">{user?.initials ?? "?"}</span>
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -137,17 +137,42 @@ export default function Sidebar() {
                 exit={{ opacity: 0 }}
                 className="overflow-hidden flex-1 min-w-0"
               >
-                <p className="text-[12px] font-medium text-[#e5e2e1] truncate">{user?.name ?? "—"}</p>
-                <p className="text-[10px] text-[#8e9192] capitalize truncate">{user?.role ?? "—"}</p>
+                <p className="text-[12px] font-medium text-foreground truncate">{user?.name ?? "—"}</p>
+                <p className="text-[10px] text-muted-foreground capitalize truncate">{user?.role ?? "—"}</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Collapse toggle */}
+        {/* Logout button */}
+        <button
+          onClick={handleLogout}
+          className={cn(
+            "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-all duration-200 text-[13px]",
+            collapsed && "justify-center px-0"
+          )}
+        >
+          <LogOut size={15} className="shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="whitespace-nowrap"
+              >
+                Sign Out
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+      </div>
+
+      {/* Collapse toggle */}
+      <div className="px-2 py-4 border-t border-border">
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[#8e9192] hover:text-[#e5e2e1] hover:bg-white/5 transition-all duration-200"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[var(--input)] transition-all duration-200"
         >
           {collapsed
             ? <ChevronRight size={16} />
