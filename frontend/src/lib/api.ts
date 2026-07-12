@@ -20,18 +20,20 @@ export function getUserId(): string | null {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
+
+  // No token yet — auth is still hydrating, silently skip the request
+  if (!token) return Promise.resolve(null as unknown as T);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  headers["Authorization"] = `Bearer ${token}`;
 
   const res  = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const data = await res.json();
 
   if (!res.ok || data.success === false) {
-    // Suppress auth errors when there's no token — layout will redirect to login
-    if (res.status === 401 && !token) return Promise.reject(new Error("unauthenticated"));
     throw new Error(data.error || `Request failed: ${res.status}`);
   }
   return data;

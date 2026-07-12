@@ -143,12 +143,12 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User info + logout */}
-      <div className="px-2 pb-3 border-t border-white/8 pt-3 space-y-1">
+      {/* User info + logout + collapse toggle — bottom section */}
+      <div className="border-t border-white/8 px-2 py-3 space-y-1 shrink-0">
         {/* User card */}
         <div className={cn(
           "flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--input)]",
-          collapsed && "justify-center px-0"
+          collapsed && "justify-center px-2"
         )}>
           <div className="w-7 h-7 rounded-full bg-[var(--accent)]/15 border border-[var(--accent)]/30 flex items-center justify-center shrink-0">
             <span className="text-[10px] font-bold text-[var(--accent)]">{user?.initials ?? "?"}</span>
@@ -165,19 +165,16 @@ export default function Sidebar() {
             )}
           </AnimatePresence>
         </div>
-      </div>
 
         {/* Collapse toggle */}
-        <div className="px-0 pt-1">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[var(--input)] transition-all duration-200"
-          >
-            {collapsed
-              ? <ChevronRight size={16} />
-              : <><ChevronLeft size={16} /><span className="text-[12px]">Collapse</span></>}
-          </button>
-        </div>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[var(--input)] transition-all duration-200"
+        >
+          {collapsed
+            ? <ChevronRight size={16} />
+            : <><ChevronLeft size={16} /><span className="text-[12px]">Collapse</span></>}
+        </button>
       </div>
     </motion.aside>
   );

@@ -145,7 +145,7 @@ export default function OrganizationPage() {
   if (!canManageOrg) return <AccessDenied message="Organization Setup is restricted to Admins only." />;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-5">
       <PageHeader title="Organization Setup" description="Manage departments, employees, and asset categories" icon={Building2}>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={openAdd}
           className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
@@ -154,7 +154,7 @@ export default function OrganizationPage() {
       </PageHeader>
 
       <Tabs value={tab} onValueChange={v => setTab(v as Tab)}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3 flex-wrap mb-4">
           <TabsList className="bg-white/5 border border-white/8 p-1 rounded-xl">
             {(["departments", "employees", "categories"] as Tab[]).map(t => (
               <TabsTrigger key={t} value={t}
@@ -163,7 +163,7 @@ export default function OrganizationPage() {
               </TabsTrigger>
             ))}
           </TabsList>
-          <div className="relative">
+          <div className="relative ml-auto">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8e9192]" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
               className="pl-8 pr-4 py-2 bg-white/5 border border-white/8 rounded-full text-[13px] text-[#e5e2e1] placeholder-[#8e9192] focus:outline-none focus:border-[#00f0ff]/40 w-48" />
