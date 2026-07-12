@@ -19,7 +19,7 @@ function LoginForm() {
 
   const [email, setEmail]         = useState("");
   const [password, setPassword]   = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPass, setShowPass]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");

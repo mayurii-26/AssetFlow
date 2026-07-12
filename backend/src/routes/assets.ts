@@ -1,7 +1,12 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
+import { BlockchainService } from "../blockchain/services/blockchain.service";
+import { BLOCKCHAIN_EVENTS } from "../blockchain/constants/events";
 
 const router = Router();
+
+// Blockchain service — singleton; gracefully degrades if node is unavailable
+const blockchainService = BlockchainService.getInstance();
 
 // GET /api/assets
 router.get("/", async (req: Request, res: Response) => {
@@ -59,6 +64,32 @@ router.post("/", async (req: Request, res: Response) => {
       description: description || "",
     },
   });
+
+  // ── Blockchain: record asset registration event (non-blocking) ──────────────
+  // Fires-and-forgets so a blockchain outage never breaks asset registration.
+  blockchainService.recordEvent({
+    assetId:     asset.id,
+    eventType:   BLOCKCHAIN_EVENTS.ASSET_CREATED,
+    initiatedBy: req.body.registeredBy ?? "system",
+    payload: {
+      assetId:       asset.id,
+      assetName:     asset.name,
+      serialNumber:  asset.serialNumber,
+      categoryId:    asset.categoryId,
+      departmentId:  asset.departmentId,
+      vendor:        asset.vendor,
+      cost:          Number(asset.cost),
+      purchaseDate:  asset.purchaseDate.toISOString(),
+      location:      asset.location,
+    },
+    metadata: {
+      department: departmentId,
+    },
+  }).catch((err: Error) => {
+    // Log but never surface blockchain errors to the client
+    console.warn(`[assets] Blockchain recording skipped for ${asset.id}: ${err.message}`);
+  });
+
   res.status(201).json({ success: true, data: asset, message: "Asset registered successfully" });
 });
 

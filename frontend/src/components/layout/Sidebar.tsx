@@ -165,6 +165,7 @@ export default function Sidebar() {
             )}
           </AnimatePresence>
         </div>
+      </div>
 
         {/* Collapse toggle */}
         <div className="px-0 pt-1">

@@ -399,3 +399,26 @@ enum LogSeverity {
   WARNING
   ERROR
 }
+
+// ─────────────────────────────────────────────
+// BLOCKCHAIN EVENTS
+// ─────────────────────────────────────────────
+
+model BlockchainEvent {
+  id                String   @id @default(cuid())
+  assetId           String
+  eventType         String
+  eventHash         String   @unique
+  transactionHash   String   @unique
+  blockNumber       BigInt?
+  performedBy       String
+  department        String?
+  metadata          Json?
+  timestamp         DateTime @default(now())
+  verificationStatus String  @default("VERIFIED")
+  status            String   @default("SUCCESS")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("blockchain_events")
+}

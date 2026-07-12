@@ -30,6 +30,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const data = await res.json();
 
   if (!res.ok || data.success === false) {
+    // Suppress auth errors when there's no token — layout will redirect to login
+    if (res.status === 401 && !token) return Promise.reject(new Error("unauthenticated"));
     throw new Error(data.error || `Request failed: ${res.status}`);
   }
   return data;

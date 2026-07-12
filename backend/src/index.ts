@@ -14,6 +14,8 @@ import auditRouter from "./routes/audit";
 import notificationsRouter from "./routes/notifications";
 import reportsRouter from "./routes/reports";
 import activityRouter from "./routes/activity";
+import blockchainRouter from "./routes/blockchain";
+import { initializeWeb3 } from "./blockchain/config/init";
 
 dotenv.config();
 
@@ -46,6 +48,7 @@ app.use("/api/audit",         auditRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/reports",       reportsRouter);
 app.use("/api/activity",      activityRouter);
+app.use("/api/blockchain",    blockchainRouter);
 
 // ── 404 handler ─────────────────────────────────────────
 app.use((_req, res) => {
@@ -66,6 +69,17 @@ app.listen(PORT, () => {
   console.log(`\n    Demo accounts:`);
   console.log(`    Admin     →  admin@assetflow.com  /  password123`);
   console.log(`    Employee  →  user@assetflow.com   /  password123\n`);
+
+  // ── Blockchain: attempt Web3 connection (non-blocking) ─────────────────────
+  // The ERP works fully without a running Hardhat node.
+  // Start the node with: npm run blockchain:node
+  initializeWeb3().then((ready) => {
+    if (ready) {
+      console.log(`    ⛓   Blockchain    →  connected (Hardhat local)\n`);
+    } else {
+      console.log(`    ⛓   Blockchain    →  offline (run: npm run blockchain:node)\n`);
+    }
+  });
 });
 
 export default app;

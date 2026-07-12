@@ -125,7 +125,7 @@ export default function MaintenancePage() {
   const taskAssetName = (t: MaintenanceTask) => t.asset?.name ?? t.assetId;
 
   return (
-    <div className="space-y-5 max-w-[1400px] mx-auto">
+    <div className="space-y-5">
       <PageHeader title="Maintenance" description="Track and manage asset maintenance requests" icon={Wrench}>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
           onClick={() => { setNewOpen(true); setForm({ ...emptyForm, technician: user?.name ?? "" }); setAssetSearch(""); setFormError(""); }}
@@ -135,28 +135,28 @@ export default function MaintenancePage() {
       </PageHeader>
 
       {loading ? (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-5 gap-3 min-w-0">
           {COLUMNS.map(col => (
-            <div key={col} className="flex-shrink-0 w-64 rounded-2xl border border-white/8 p-3 animate-pulse">
+            <div key={col} className="rounded-2xl border border-white/8 p-3 animate-pulse">
               <div className="h-4 bg-white/5 rounded w-24 mb-3" />
               {Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-24 bg-white/5 rounded-xl mb-2" />)}
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-5 gap-3 min-w-0">
           {COLUMNS.map(col => {
             const colTasks = tasks.filter(t => t.status === col);
             return (
               <div key={col}
                 onDragOver={e => { if (canApproveRequests) e.preventDefault(); }}
                 onDrop={e => { e.preventDefault(); if (canApproveRequests && dragging) { moveTask(dragging, col); setDragging(null); } }}
-                className={`flex-shrink-0 w-64 rounded-2xl border p-3 ${COL_COLORS[col]}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className={`text-[12px] font-semibold uppercase tracking-wider ${COL_HEADER_COLORS[col]}`}>
+                className={`rounded-2xl border p-3 min-w-0 ${COL_COLORS[col]}`}>
+                <div className="flex items-center justify-between mb-3 gap-1">
+                  <h3 className={`text-[11px] font-semibold uppercase tracking-wider truncate ${COL_HEADER_COLORS[col]}`}>
                     {maintenanceStatusLabel(col)}
                   </h3>
-                  <span className="w-5 h-5 rounded-full bg-white/10 text-[#8e9192] text-[11px] flex items-center justify-center font-bold">{colTasks.length}</span>
+                  <span className="w-5 h-5 rounded-full bg-white/10 text-[#8e9192] text-[11px] flex items-center justify-center font-bold shrink-0">{colTasks.length}</span>
                 </div>
                 <div className="space-y-2 min-h-[80px]">
                   <AnimatePresence>
@@ -170,18 +170,18 @@ export default function MaintenancePage() {
                         className="bg-[#1c1b1b] border border-white/8 rounded-xl p-3 cursor-pointer hover:border-white/15 hover:bg-[#201f1f] transition-all"
                         whileHover={{ y: -1 }}
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <p className="text-[13px] font-medium text-[#e5e2e1] leading-tight">{taskAssetName(task)}</p>
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${PRIORITY_COLORS[task.priority]}`}>
+                        <div className="flex items-start justify-between mb-2 gap-1">
+                          <p className="text-[12px] font-medium text-[#e5e2e1] leading-tight truncate">{taskAssetName(task)}</p>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${PRIORITY_COLORS[task.priority]}`}>
                             {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
                           </span>
                         </div>
                         <p className="text-[11px] text-[#8e9192] mb-2 line-clamp-2">{task.issue}</p>
-                        <div className="flex items-center justify-between text-[10px] text-[#444748]">
-                          <div className="flex items-center gap-1"><User size={10} />{task.technician ?? "—"}</div>
-                          <div className="flex items-center gap-1"><Clock size={10} />{new Date(task.createdAt).toLocaleDateString("en-IN")}</div>
+                        <div className="flex items-center justify-between text-[10px] text-[#444748] gap-1">
+                          <div className="flex items-center gap-1 truncate"><User size={10} className="shrink-0" /><span className="truncate">{task.technician ?? "—"}</span></div>
+                          <div className="flex items-center gap-1 shrink-0"><Clock size={10} />{new Date(task.createdAt).toLocaleDateString("en-IN")}</div>
                         </div>
-                        <p className="text-[10px] font-mono text-[#00f0ff]/60 mt-1.5">{task.id}</p>
+                        <p className="text-[10px] font-mono text-[#00f0ff]/60 mt-1.5 truncate">{task.id}</p>
                       </motion.div>
                     ))}
                   </AnimatePresence>

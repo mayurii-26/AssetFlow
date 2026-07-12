@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<Notification[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, token, isLoading: authLoading } = useAuth();
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -49,13 +49,19 @@ export default function DashboardPage() {
       setAlerts(notifRes.data.slice(0, 5));
       setLogs(logsRes.data);
     } catch (err) {
-      console.error("Dashboard load error:", err);
+      // Ignore unauthenticated errors — layout will redirect to login
+      if (err instanceof Error && err.message !== "unauthenticated") {
+        console.error("Dashboard load error:", err);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Only load data once we have a valid token — prevents "Authentication required" on mount
+  useEffect(() => {
+    if (!authLoading && token) { load(); }
+  }, [authLoading, token, load]);
 
   const kpis = summary
     ? [
@@ -78,7 +84,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         title="Dashboard"
         description="Overview of your asset ecosystem"
@@ -88,18 +94,18 @@ export default function DashboardPage() {
       {/* Personalized greeting */}
       <motion.div
         initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex items-center justify-between flex-wrap gap-3"
       >
         <div>
           <h2 className="text-[22px] font-bold text-[#e5e2e1]">
             {greeting()}, {user?.name?.split(" ")[0]} 👋
           </h2>
           <p className="text-[13px] text-[#8e9192] mt-0.5">
-            Here's what's happening at <span className="text-[#00f0ff] font-medium">{user?.organization}</span> today.
+            Here&apos;s what&apos;s happening at <span className="text-[#00f0ff] font-medium">{user?.organization}</span> today.
           </p>
         </div>
         {summary && (
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/3 border border-white/8 rounded-2xl">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white/3 border border-white/8 rounded-2xl shrink-0">
             <span className="text-[12px] text-[#8e9192]">Total Asset Value</span>
             <span className="text-[15px] font-bold text-[#00f0ff]">
               ₹{summary.totalValue.toLocaleString("en-IN")}
@@ -108,8 +114,8 @@ export default function DashboardPage() {
         )}
       </motion.div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* KPI Grid — 2 cols on mobile, 3 on md, 6 on lg */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="glass-panel rounded-2xl p-4 border border-white/8 animate-pulse h-24" />
@@ -119,11 +125,12 @@ export default function DashboardPage() {
             ))}
       </div>
 
-      {/* Alerts + Quick Actions */}
+      {/* Alerts + Quick Actions — stacked on mobile, side by side on lg */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Active Alerts — takes 2/3 width */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="lg:col-span-2 glass-panel rounded-2xl p-5 border border-white/8"
+          className="lg:col-span-2 glass-panel rounded-2xl p-5 border border-white/8 min-h-[160px]"
         >
           <h2 className="text-[13px] font-semibold text-[#8e9192] uppercase tracking-wider mb-3">Active Alerts</h2>
           {loading ? (
@@ -133,12 +140,14 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : alerts.length === 0 ? (
-            <div className="py-8 text-center text-[#8e9192] text-[13px]">No active alerts — all clear ✓</div>
+            <div className="flex items-center justify-center h-20 text-[#8e9192] text-[13px]">
+              No active alerts — all clear ✓
+            </div>
           ) : (
             <div className="space-y-2">
               {alerts.map(alert => (
-                <div key={alert.id} className={`flex items-center gap-3 p-3 rounded-xl border ${alertSeverityBg[alert.priority]}`}>
-                  <AlertTriangle size={14} className={["HIGH","high"].includes(alert.priority) ? "text-red-400 shrink-0" : "text-yellow-400 shrink-0"} />
+                <div key={alert.id} className={`flex items-start gap-3 p-3 rounded-xl border ${alertSeverityBg[alert.priority]}`}>
+                  <AlertTriangle size={14} className={["HIGH","high"].includes(alert.priority) ? "text-red-400 shrink-0 mt-0.5" : "text-yellow-400 shrink-0 mt-0.5"} />
                   <span className="text-[13px] text-[#e5e2e1]">{alert.title} — {alert.description}</span>
                 </div>
               ))}
@@ -146,22 +155,23 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
+        {/* Quick Actions — takes 1/3 width */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="glass-panel rounded-2xl p-5 border border-white/8"
+          className="glass-panel rounded-2xl p-5 border border-white/8 min-h-[160px]"
         >
           <h2 className="text-[13px] font-semibold text-[#8e9192] uppercase tracking-wider mb-3">Quick Actions</h2>
           <div className="space-y-2">
             {quickActions.map(({ label, href, icon: Icon, color }) => (
-              <Link key={label} href={href}>
-                <motion.button
+              <Link key={label} href={href} className="block">
+                <motion.div
                   whileHover={{ scale: 1.02, x: 2 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-[13px] transition-all ${color}`}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-[13px] transition-all cursor-pointer ${color}`}
                 >
-                  <Icon size={15} />
-                  {label}
-                </motion.button>
+                  <Icon size={15} className="shrink-0" />
+                  <span>{label}</span>
+                </motion.div>
               </Link>
             ))}
           </div>
@@ -198,10 +208,10 @@ export default function DashboardPage() {
                   <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${severityColor[log.severity]}`} />
                   {i < logs.length - 1 && <div className="w-px flex-1 bg-white/8 mt-1" />}
                 </div>
-                <div className="pb-4 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-medium text-[#e5e2e1]">{log.action}</p>
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#8e9192]">
+                <div className="pb-4 flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <p className="text-[13px] font-medium text-[#e5e2e1] truncate">{log.action}</p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#8e9192] shrink-0">
                       <Clock size={11} />
                       {new Date(log.timestamp ?? log.createdAt).toLocaleString("en-IN", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
