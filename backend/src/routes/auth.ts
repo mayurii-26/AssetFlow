@@ -45,16 +45,15 @@ router.post("/signup", async (req: Request, res: Response) => {
   if (exists)
     return res.status(409).json({ success: false, error: "An account with this email already exists." });
 
-  // First user ever becomes ADMIN, everyone else is EMPLOYEE
-  const count        = await prisma.user.count();
+  // Always assign EMPLOYEE — role cannot be set via signup
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
+  await prisma.user.create({
     data: {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       passwordHash,
-      role: count === 0 ? "ADMIN" : "EMPLOYEE",
+      role: "EMPLOYEE",
       organization: organization.trim(),
     },
   });
@@ -82,8 +81,8 @@ router.post("/signup", async (req: Request, res: Response) => {
     });
   }
 
-  const token = signToken(user);
-  res.status(201).json({ success: true, token, user: publicUser(user), message: "Account created." });
+  // Do NOT issue a token — user must log in explicitly after signup
+  res.status(201).json({ success: true, message: "Account created successfully. Please log in." });
 });
 
 // ── POST /api/auth/login ───────────────────────────────

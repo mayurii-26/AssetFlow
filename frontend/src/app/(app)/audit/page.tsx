@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { useRole } from "@/hooks/useRole";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -56,6 +57,7 @@ const emptyForm = { name: "", department: "All Departments", auditor: "", startD
 
 export default function AuditPage() {
   const { user } = useAuth();
+  const { canManageAudit } = useRole();
   const [cycles, setCycles] = useState<AuditCycle[]>([]);
   const [activeCycle, setActiveCycle] = useState<AuditCycle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,12 +130,14 @@ export default function AuditPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader title="Audit" description="Track asset verification and discrepancy reports" icon={ClipboardCheck}>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={() => { setNewOpen(true); setForm({ ...emptyForm, auditor: user?.name ?? "" }); setFormError(""); }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
-          <Plus size={14} /> New Audit Cycle
-        </motion.button>
-        {activeCycle && (
+        {canManageAudit && (
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            onClick={() => { setNewOpen(true); setForm({ ...emptyForm, auditor: user?.name ?? "" }); setFormError(""); }}
+            className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
+            <Plus size={14} /> New Audit Cycle
+          </motion.button>
+        )}
+        {canManageAudit && activeCycle && (
           <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={handleClose}
             className="flex items-center gap-2 px-4 py-2 bg-red-500/15 border border-red-500/25 text-red-400 rounded-full text-[13px] font-medium hover:bg-red-500/25 transition-colors">
             Close Cycle

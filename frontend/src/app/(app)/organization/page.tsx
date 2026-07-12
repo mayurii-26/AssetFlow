@@ -1,14 +1,16 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Building2, Plus, Pencil, Trash2, Search, X, Check } from "lucide-react";
+import { Building2, Plus, Pencil, Trash2, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { orgApi, type Department, type Employee, type Category } from "@/lib/api";
+import { orgApi, employeeDepartmentName, type Department, type Employee, type Category } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useRole } from "@/hooks/useRole";
+import AccessDenied from "@/components/ui/AccessDenied";
 
 function Th({ children }: { children: React.ReactNode }) {
   return <th className="px-4 py-3 text-left text-[11px] font-semibold text-[#8e9192] uppercase tracking-wider">{children}</th>;
@@ -20,6 +22,7 @@ function Td({ children, className = "" }: { children: React.ReactNode; className
 type Tab = "departments" | "employees" | "categories";
 
 export default function OrganizationPage() {
+  const { canManageOrg } = useRole();
   const [tab, setTab] = useState<Tab>("departments");
   const [search, setSearch] = useState("");
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -61,7 +64,16 @@ export default function OrganizationPage() {
 
   const openEdit = (item: Department | Employee | Category) => {
     setEditTarget(item);
-    setForm({ ...item } as Record<string, string>);
+    // For employees, pre-fill departmentId from the nested object
+    if (tab === "employees") {
+      const emp = item as Employee;
+      setForm({
+        ...emp,
+        departmentId: emp.departmentId || (typeof emp.department === "object" ? emp.department.id : ""),
+      } as Record<string, string>);
+    } else {
+      setForm({ ...item } as Record<string, string>);
+    }
     setError("");
     setModalOpen(true);
   };
@@ -69,35 +81,44 @@ export default function OrganizationPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
     try {
-      if (tab === "departments") await orgApi.departments.remove(id);
+      if (tab === "departments")  await orgApi.departments.remove(id);
       else if (tab === "employees") await orgApi.employees.remove(id);
       else await orgApi.categories.remove(id);
       loadAll();
-    } catch (e: any) {
-      alert(e.message);
-    }
+    } catch (e: any) { alert(e.message); }
   };
 
   const handleSave = async () => {
     setError("");
     setSubmitting(true);
     try {
-      if (editTarget) {
-        // Edit
-        if (tab === "departments") await orgApi.departments.update(editTarget.id, form as Partial<Department>);
-        else if (tab === "employees") await orgApi.employees.update(editTarget.id, form as Partial<Employee>);
-        else await orgApi.categories.update(editTarget.id, form as Partial<Category>);
-      } else {
-        // Create
-        if (tab === "departments") {
-          if (!form.name) throw new Error("Name is required");
-          await orgApi.departments.create(form as Partial<Department>);
-        } else if (tab === "employees") {
-          if (!form.name || !form.email) throw new Error("Name and email are required");
-          await orgApi.employees.create(form as Partial<Employee>);
+      if (tab === "departments") {
+        if (!form.name) throw new Error("Name is required");
+        if (editTarget) {
+          await orgApi.departments.update(editTarget.id, { name: form.name, head: form.head, parent: form.parent });
         } else {
-          if (!form.name || !form.prefix) throw new Error("Name and prefix are required");
-          await orgApi.categories.create(form as Partial<Category>);
+          await orgApi.departments.create({ name: form.name, head: form.head, parent: form.parent });
+        }
+      } else if (tab === "employees") {
+        if (!form.name || !form.email) throw new Error("Name and email are required");
+        if (!form.departmentId) throw new Error("Department is required");
+        if (editTarget) {
+          await orgApi.employees.update(editTarget.id, {
+            name: form.name, email: form.email,
+            departmentId: form.departmentId, designation: form.designation,
+          });
+        } else {
+          await orgApi.employees.create({
+            name: form.name, email: form.email,
+            departmentId: form.departmentId, designation: form.designation,
+          });
+        }
+      } else {
+        if (!form.name || !form.prefix) throw new Error("Name and prefix are required");
+        if (editTarget) {
+          await orgApi.categories.update(editTarget.id, { name: form.name, prefix: form.prefix, description: form.description });
+        } else {
+          await orgApi.categories.create({ name: form.name, prefix: form.prefix, description: form.description });
         }
       }
       setModalOpen(false);
@@ -109,15 +130,19 @@ export default function OrganizationPage() {
     }
   };
 
-  const f = (key: string) => form[key] || "";
+  const f  = (key: string) => form[key] || "";
   const sf = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [key]: e.target.value }));
 
   const deptFiltered = departments.filter(d => d.name.toLowerCase().includes(search.toLowerCase()));
-  const empFiltered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
-  const catFiltered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const empFiltered  = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+  const catFiltered  = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
-  const modalTitle = `${editTarget ? "Edit" : "Add"} ${tab === "departments" ? "Department" : tab === "employees" ? "Employee" : "Category"}`;
+  const modalTitle = `${editTarget ? "Edit" : "Add"} ${
+    tab === "departments" ? "Department" : tab === "employees" ? "Employee" : "Category"
+  }`;
+
+  if (!canManageOrg) return <AccessDenied message="Organization Setup is restricted to Admins only." />;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -151,20 +176,18 @@ export default function OrganizationPage() {
             <table className="w-full">
               <thead><tr className="border-b border-white/8"><Th>Department</Th><Th>Head</Th><Th>Parent</Th><Th>Status</Th><Th>Actions</Th></tr></thead>
               <tbody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i} className="border-b border-white/5">
-                      {Array.from({ length: 5 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
-                    </tr>
-                  ))
-                ) : deptFiltered.length === 0 ? (
+                {loading ? Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    {Array.from({ length: 5 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
+                  </tr>
+                )) : deptFiltered.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-12 text-center text-[#8e9192] text-[13px]">No departments yet. Add your first department.</td></tr>
                 ) : deptFiltered.map((dept, i) => (
                   <motion.tr key={dept.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
                     className="border-b border-white/5 hover:bg-white/3 transition-colors">
                     <Td><span className="font-medium">{dept.name}</span></Td>
                     <Td>{dept.head}</Td>
-                    <Td><span className="text-[#8e9192]">{dept.parent}</span></Td>
+                    <Td><span className="text-[#8e9192]">{dept.parent ?? "—"}</span></Td>
                     <Td><StatusBadge status={dept.status} /></Td>
                     <Td>
                       <div className="flex items-center gap-1">
@@ -183,22 +206,20 @@ export default function OrganizationPage() {
         <TabsContent value="employees">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel rounded-2xl border border-white/8 overflow-hidden">
             <table className="w-full">
-              <thead><tr className="border-b border-white/8"><Th>ID</Th><Th>Name</Th><Th>Department</Th><Th>Designation</Th><Th>Email</Th><Th>Status</Th><Th>Actions</Th></tr></thead>
+              <thead><tr className="border-b border-white/8"><Th>Code</Th><Th>Name</Th><Th>Department</Th><Th>Designation</Th><Th>Email</Th><Th>Status</Th><Th>Actions</Th></tr></thead>
               <tbody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i} className="border-b border-white/5">
-                      {Array.from({ length: 7 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
-                    </tr>
-                  ))
-                ) : empFiltered.length === 0 ? (
+                {loading ? Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    {Array.from({ length: 7 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
+                  </tr>
+                )) : empFiltered.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-[#8e9192] text-[13px]">No employees yet. Add team members to get started.</td></tr>
                 ) : empFiltered.map((emp, i) => (
                   <motion.tr key={emp.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
                     className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                    <Td><span className="font-mono text-[12px] text-[#00f0ff]">{emp.id}</span></Td>
+                    <Td><span className="font-mono text-[12px] text-[#00f0ff]">{emp.employeeCode}</span></Td>
                     <Td><span className="font-medium">{emp.name}</span></Td>
-                    <Td>{emp.department}</Td>
+                    <Td>{employeeDepartmentName(emp)}</Td>
                     <Td><span className="text-[#8e9192]">{emp.designation}</span></Td>
                     <Td><span className="text-[12px]">{emp.email}</span></Td>
                     <Td><StatusBadge status={emp.status} /></Td>
@@ -221,20 +242,18 @@ export default function OrganizationPage() {
             <table className="w-full">
               <thead><tr className="border-b border-white/8"><Th>Category</Th><Th>Prefix</Th><Th>Description</Th><Th>Status</Th><Th>Actions</Th></tr></thead>
               <tbody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={i} className="border-b border-white/5">
-                      {Array.from({ length: 5 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
-                    </tr>
-                  ))
-                ) : catFiltered.length === 0 ? (
+                {loading ? Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    {Array.from({ length: 5 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>)}
+                  </tr>
+                )) : catFiltered.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-12 text-center text-[#8e9192] text-[13px]">No categories yet. Add asset categories first.</td></tr>
                 ) : catFiltered.map((cat, i) => (
                   <motion.tr key={cat.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
                     className="border-b border-white/5 hover:bg-white/3 transition-colors">
                     <Td><span className="font-medium">{cat.name}</span></Td>
                     <Td><span className="font-mono text-[12px] text-[#00f0ff]">{cat.prefix}</span></Td>
-                    <Td><span className="text-[#8e9192]">{cat.description}</span></Td>
+                    <Td><span className="text-[#8e9192]">{cat.description ?? "—"}</span></Td>
                     <Td><StatusBadge status={cat.status} /></Td>
                     <Td>
                       <div className="flex items-center gap-1">
@@ -257,6 +276,7 @@ export default function OrganizationPage() {
             <DialogTitle className="text-[#e5e2e1]">{modalTitle}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+
             {tab === "departments" && (
               <>
                 <div className="space-y-1.5">
@@ -276,24 +296,28 @@ export default function OrganizationPage() {
                 </div>
               </>
             )}
+
             {tab === "employees" && (
               <>
                 <div className="space-y-1.5">
                   <Label className="text-[#8e9192] text-[12px]">Full Name *</Label>
-                  <input value={f("name")} onChange={sf("name")} placeholder="e.g. Jane Smith"
+                  <input value={f("name")} onChange={sf("name")} placeholder="e.g. Mayuri Sharma"
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[#8e9192] text-[12px]">Email *</Label>
-                  <input type="email" value={f("email")} onChange={sf("email")} placeholder="jane@company.com"
+                  <input type="email" value={f("email")} onChange={sf("email")} placeholder="name@company.com"
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[#8e9192] text-[12px]">Department</Label>
-                  <select value={f("department")} onChange={sf("department")}
+                  <Label className="text-[#8e9192] text-[12px]">Department *</Label>
+                  {/* Sends departmentId (cuid) — NOT the name string */}
+                  <select value={f("departmentId")} onChange={sf("departmentId")}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40">
                     <option value="" className="bg-[#1c1b1b]">Select department…</option>
-                    {departments.map(d => <option key={d.id} value={d.name} className="bg-[#1c1b1b]">{d.name}</option>)}
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id} className="bg-[#1c1b1b]">{d.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -303,6 +327,7 @@ export default function OrganizationPage() {
                 </div>
               </>
             )}
+
             {tab === "categories" && (
               <>
                 <div className="space-y-1.5">
@@ -322,6 +347,7 @@ export default function OrganizationPage() {
                 </div>
               </>
             )}
+
           </div>
           {error && <p className="text-red-400 text-[12px] px-1">{error}</p>}
           <DialogFooter>

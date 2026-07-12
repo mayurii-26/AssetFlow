@@ -6,27 +6,28 @@ import PageHeader from "@/components/ui/PageHeader";
 import { notificationsApi, activityApi, type Notification, type ActivityLog } from "@/lib/api";
 
 const typeIcons: Record<string, React.ReactNode> = {
-  alert: <AlertTriangle size={16} className="text-red-400" />,
-  approval: <CheckCircle size={16} className="text-[#00f0ff]" />,
-  booking: <Calendar size={16} className="text-purple-400" />,
-  maintenance: <Wrench size={16} className="text-yellow-400" />,
-  audit: <ClipboardCheck size={16} className="text-orange-400" />,
+  ALERT:       <AlertTriangle size={16} className="text-red-400" />,
+  APPROVAL:    <CheckCircle size={16} className="text-[#00f0ff]" />,
+  BOOKING:     <Calendar size={16} className="text-purple-400" />,
+  MAINTENANCE: <Wrench size={16} className="text-yellow-400" />,
+  AUDIT:       <ClipboardCheck size={16} className="text-orange-400" />,
 };
 const typeBg: Record<string, string> = {
-  alert: "bg-red-500/10 border-red-500/20",
-  approval: "bg-[#00f0ff]/10 border-[#00f0ff]/20",
-  booking: "bg-purple-500/10 border-purple-500/20",
-  maintenance: "bg-yellow-500/10 border-yellow-500/20",
-  audit: "bg-orange-500/10 border-orange-500/20",
+  ALERT:       "bg-red-500/10 border-red-500/20",
+  APPROVAL:    "bg-[#00f0ff]/10 border-[#00f0ff]/20",
+  BOOKING:     "bg-purple-500/10 border-purple-500/20",
+  MAINTENANCE: "bg-yellow-500/10 border-yellow-500/20",
+  AUDIT:       "bg-orange-500/10 border-orange-500/20",
 };
 const severityDot: Record<string, string> = {
+  INFO: "bg-[#00f0ff]", WARNING: "bg-yellow-400", ERROR: "bg-red-400",
   info: "bg-[#00f0ff]", warning: "bg-yellow-400", error: "bg-red-400",
 };
 
 const tabs = ["All", "Alerts", "Approvals", "Bookings", "Maintenance", "Audit"];
 const tabFilter: Record<string, string> = {
-  All: "", Alerts: "alert", Approvals: "approval",
-  Bookings: "booking", Maintenance: "maintenance", Audit: "audit",
+  All: "", Alerts: "ALERT", Approvals: "APPROVAL",
+  Bookings: "BOOKING", Maintenance: "MAINTENANCE", Audit: "AUDIT",
 };
 
 export default function NotificationsPage() {
@@ -131,7 +132,7 @@ export default function NotificationsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <p className={`text-[13px] font-semibold ${notif.read ? "text-[#8e9192]" : "text-[#e5e2e1]"}`}>{notif.title}</p>
                         <span className="text-[11px] text-[#444748] shrink-0">
-                          {new Date(notif.timestamp).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(notif.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
                       <p className="text-[12px] text-[#8e9192] mt-0.5">{notif.description}</p>
@@ -193,7 +194,7 @@ export default function NotificationsPage() {
                     <p className="text-[11px] text-[#8e9192] mt-0.5 truncate">{log.description}</p>
                     <div className="flex items-center gap-2 mt-1 text-[10px] text-[#444748]">
                       <span>{log.user}</span><span>·</span><span>{log.module}</span><span>·</span>
-                      <span>{new Date(log.timestamp).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span>{new Date(log.timestamp ?? log.createdAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                   </div>
                 </motion.div>

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Eye, EyeOff, Zap, Mail, Lock, User,
-  Building2, AlertCircle, ArrowRight, CheckCircle2
+  Building2, AlertCircle, ArrowRight, CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -22,13 +22,17 @@ export default function SignupPage() {
   const [email, setEmail]             = useState("");
   const [organization, setOrganization] = useState("");
   const [password, setPassword]       = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass]       = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password || !organization) {
+    setError("");
+
+    if (!name.trim() || !email.trim() || !password || !confirmPassword || !organization.trim()) {
       setError("Please fill in all fields.");
       return;
     }
@@ -36,12 +40,18 @@ export default function SignupPage() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
-    setError("");
-    const result = await signup(name, email, password, organization);
+    const result = await signup(name.trim(), email.trim(), password, organization.trim());
     setLoading(false);
+
     if (result.success) {
-      router.replace("/dashboard");
+      // Redirect to login with success message as URL param — no auto-login
+      router.replace("/auth/login?success=Account+created+successfully.+Please+log+in.");
     } else {
       setError(result.error || "Signup failed.");
     }
@@ -74,16 +84,16 @@ export default function SignupPage() {
             Join your organization&apos;s AssetFlow workspace
           </p>
 
-          {/* Info chip — no role selector needed */}
+          {/* Role info chip */}
           <div className="flex items-start gap-2 p-3 bg-[#00f0ff]/8 border border-[#00f0ff]/20 rounded-xl mb-5">
             <div className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] mt-1.5 shrink-0" />
             <p className="text-[12px] text-[#c4c7c8] leading-relaxed">
               You&apos;ll join as an <span className="text-[#00f0ff] font-semibold">Employee</span>.
-              Your admin can promote you to Department Head or Asset Manager from the Employee Directory.
+              Your admin can promote your role from the Employee Directory.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {/* Full Name */}
             <div className="space-y-1.5">
               <label className="text-[12px] font-medium text-[#8e9192]">Full Name</label>
@@ -134,22 +144,17 @@ export default function SignupPage() {
                   placeholder="••••••••" autoComplete="new-password"
                   className="w-full pl-9 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all"
                 />
-                <button
-                  type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#e5e2e1] transition-colors"
-                >
+                <button type="button" onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#e5e2e1] transition-colors">
                   {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
-
               {/* Password strength hints */}
               {password.length > 0 && (
                 <div className="flex gap-4 pt-1">
                   {passwordRules.map(rule => (
-                    <div
-                      key={rule.label}
-                      className={`flex items-center gap-1 text-[11px] transition-colors ${rule.test(password) ? "text-green-400" : "text-[#444748]"}`}
-                    >
+                    <div key={rule.label}
+                      className={`flex items-center gap-1 text-[11px] transition-colors ${rule.test(password) ? "text-green-400" : "text-[#444748]"}`}>
                       <CheckCircle2 size={11} />
                       {rule.label}
                     </div>
@@ -158,12 +163,37 @@ export default function SignupPage() {
               )}
             </div>
 
+            {/* Confirm Password */}
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-[#8e9192]">Confirm Password</label>
+              <div className="relative">
+                <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
+                <input
+                  type={showConfirm ? "text" : "password"} value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••" autoComplete="new-password"
+                  className={`w-full pl-9 pr-10 py-2.5 bg-white/5 border rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:bg-white/8 transition-all ${
+                    confirmPassword.length > 0
+                      ? confirmPassword === password
+                        ? "border-green-500/40 focus:border-green-500/60"
+                        : "border-red-500/40 focus:border-red-500/60"
+                      : "border-white/10 focus:border-[#00f0ff]/50"
+                  }`}
+                />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#e5e2e1] transition-colors">
+                  {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              {confirmPassword.length > 0 && confirmPassword !== password && (
+                <p className="text-[11px] text-red-400 pt-0.5">Passwords do not match.</p>
+              )}
+            </div>
+
             {/* Error */}
             {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/25 rounded-xl"
-              >
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/25 rounded-xl">
                 <AlertCircle size={14} className="text-red-400 shrink-0" />
                 <p className="text-[12px] text-red-400">{error}</p>
               </motion.div>
@@ -178,8 +208,7 @@ export default function SignupPage() {
             >
               {loading
                 ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                : <><span>Create Account</span><ArrowRight size={15} /></>
-              }
+                : <><span>Create Account</span><ArrowRight size={15} /></>}
             </motion.button>
           </form>
 

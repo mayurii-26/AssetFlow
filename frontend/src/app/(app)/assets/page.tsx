@@ -4,20 +4,26 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Package, Plus, Search, X, QrCode, Pencil, Wrench, ArrowLeftRight } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { assetsApi, orgApi, type Asset, type Category, type Department } from "@/lib/api";
+import { assetsApi, orgApi, assetCategoryName, assetDepartmentName, assetStatusLabel, getUserId, type Asset, type Category, type Department } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useRole } from "@/hooks/useRole";
 
-const statuses = ["All", "Available", "Allocated", "Under Maintenance", "Retired"];
+const STATUS_OPTIONS = ["All", "AVAILABLE", "ALLOCATED", "UNDER_MAINTENANCE", "RETIRED"];
+const STATUS_LABELS: Record<string, string> = {
+  All: "All", AVAILABLE: "Available", ALLOCATED: "Allocated",
+  UNDER_MAINTENANCE: "Under Maintenance", RETIRED: "Retired",
+};
 
 const emptyForm = {
-  name: "", category: "", department: "", serialNumber: "",
+  name: "", categoryId: "", departmentId: "", serialNumber: "",
   vendor: "", purchaseDate: "", cost: "", location: "",
   warrantyExpiry: "", description: "",
 };
 
 export default function AssetsPage() {
+  const { canRegisterAssets, isEmployee, user } = useRole();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -36,8 +42,9 @@ export default function AssetsPage() {
     try {
       const params: Record<string, string> = {};
       if (filterStatus !== "All") params.status = filterStatus;
-      if (filterCat !== "All") params.category = filterCat;
       if (search) params.search = search;
+      // Employees only see assets allocated to them
+      if (isEmployee && user?.name) params.currentHolder = user.name;
       const res = await assetsApi.list(params);
       setAssets(res.data);
     } catch (e) {
@@ -45,7 +52,7 @@ export default function AssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterCat, search]);
+  }, [filterStatus, search, isEmployee, user?.name]);
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
 
@@ -57,24 +64,24 @@ export default function AssetsPage() {
   }, []);
 
   const handleRegister = async () => {
-    if (!form.name || !form.category || !form.department) {
-      setError("Name, category, and department are required.");
+    if (!form.name || !form.categoryId || !form.departmentId || !form.serialNumber) {
+      setError("Name, category, department and serial number are required.");
       return;
     }
     setSubmitting(true);
     setError("");
     try {
       await assetsApi.create({
-        name: form.name,
-        category: form.category,
-        department: form.department,
-        serialNumber: form.serialNumber || undefined,
-        vendor: form.vendor || undefined,
-        purchaseDate: form.purchaseDate || undefined,
-        cost: form.cost ? Number(form.cost) : undefined,
-        location: form.location || undefined,
+        name:          form.name,
+        categoryId:    form.categoryId,
+        departmentId:  form.departmentId,
+        serialNumber:  form.serialNumber,
+        vendor:        form.vendor     || undefined,
+        purchaseDate:  form.purchaseDate || undefined,
+        cost:          form.cost ? Number(form.cost) : undefined,
+        location:      form.location   || undefined,
         warrantyExpiry: form.warrantyExpiry || undefined,
-        description: form.description || undefined,
+        description:   form.description || undefined,
       });
       setRegisterOpen(false);
       setForm(emptyForm);
@@ -86,19 +93,25 @@ export default function AssetsPage() {
     }
   };
 
+  // Client-side category filter (after fetch)
+  const filteredAssets = filterCat === "All"
+    ? assets
+    : assets.filter(a => assetCategoryName(a) === filterCat);
+
   const categoryNames = ["All", ...categories.map(c => c.name)];
-  const departmentNames = departments.map(d => d.name);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
-      <PageHeader title="Asset Directory" description="Register, search, and manage all assets" icon={Package}>
-        <motion.button
-          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={() => { setRegisterOpen(true); setError(""); setForm(emptyForm); }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold"
-        >
-          <Plus size={14} /> Register Asset
-        </motion.button>
+      <PageHeader title="Asset Directory" description={isEmployee ? "Assets currently allocated to you" : "Register, search, and manage all assets"} icon={Package}>
+        {canRegisterAssets && (
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            onClick={() => { setRegisterOpen(true); setError(""); setForm(emptyForm); }}
+            className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold"
+          >
+            <Plus size={14} /> Register Asset
+          </motion.button>
+        )}
       </PageHeader>
 
       {/* Filters */}
@@ -110,7 +123,7 @@ export default function AssetsPage() {
         </div>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
           className="px-3 py-2 bg-white/5 border border-white/8 rounded-full text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40 cursor-pointer">
-          {statuses.map(s => <option key={s} value={s} className="bg-[#1c1b1b]">{s}</option>)}
+          {STATUS_OPTIONS.map(s => <option key={s} value={s} className="bg-[#1c1b1b]">{STATUS_LABELS[s]}</option>)}
         </select>
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
           className="px-3 py-2 bg-white/5 border border-white/8 rounded-full text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40 cursor-pointer">
@@ -122,7 +135,7 @@ export default function AssetsPage() {
             <X size={12} /> Clear
           </button>
         )}
-        <span className="text-[12px] text-[#8e9192] ml-auto">{assets.length} assets</span>
+        <span className="text-[12px] text-[#8e9192] ml-auto">{filteredAssets.length} assets</span>
       </div>
 
       {/* Table */}
@@ -141,32 +154,31 @@ export default function AssetsPage() {
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-white/5">
                       {Array.from({ length: 8 }).map((_, j) => (
-                        <td key={j} className="px-4 py-3">
-                          <div className="h-4 bg-white/5 rounded animate-pulse" />
-                        </td>
+                        <td key={j} className="px-4 py-3"><div className="h-4 bg-white/5 rounded animate-pulse" /></td>
                       ))}
                     </tr>
                   ))
-                : assets.map((asset, i) => (
-                    <motion.tr
-                      key={asset.id}
+                : filteredAssets.map((asset, i) => (
+                    <motion.tr key={asset.id}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
                       onClick={() => setSelectedAsset(asset)}
                       className="border-b border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 text-[12px] font-mono text-[#00f0ff]">{asset.id}</td>
                       <td className="px-4 py-3 text-[13px] font-medium text-[#e5e2e1] whitespace-nowrap">{asset.name}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">{asset.category}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">{asset.department}</td>
-                      <td className="px-4 py-3"><StatusBadge status={asset.status} /></td>
+                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">{assetCategoryName(asset)}</td>
+                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">{assetDepartmentName(asset)}</td>
+                      <td className="px-4 py-3"><StatusBadge status={assetStatusLabel(asset.status)} /></td>
                       <td className="px-4 py-3 text-[13px] text-[#e5e2e1]">{asset.currentHolder}</td>
                       <td className="px-4 py-3 text-[13px] text-[#8e9192] whitespace-nowrap">{asset.location}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">{asset.purchaseDate}</td>
+                      <td className="px-4 py-3 text-[13px] text-[#8e9192]">
+                        {asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString("en-IN") : "—"}
+                      </td>
                     </motion.tr>
                   ))}
             </tbody>
           </table>
-          {!loading && assets.length === 0 && (
+          {!loading && filteredAssets.length === 0 && (
             <div className="py-16 text-center">
               <Package size={32} className="text-[#444748] mx-auto mb-3" />
               <p className="text-[#8e9192] text-[14px]">No assets found. Register your first asset to get started.</p>
@@ -197,12 +209,16 @@ export default function AssetsPage() {
                 </button>
               </div>
               <div className="p-6 space-y-5 flex-1">
-                <StatusBadge status={selectedAsset.status} />
+                <StatusBadge status={assetStatusLabel(selectedAsset.status)} />
                 <section>
                   <h3 className="text-[11px] font-semibold text-[#8e9192] uppercase tracking-wider mb-3">General Information</h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {[["Category", selectedAsset.category], ["Department", selectedAsset.department],
-                      ["Location", selectedAsset.location], ["Current Holder", selectedAsset.currentHolder]].map(([k, v]) => (
+                    {[
+                      ["Category",       assetCategoryName(selectedAsset)],
+                      ["Department",     assetDepartmentName(selectedAsset)],
+                      ["Location",       selectedAsset.location],
+                      ["Current Holder", selectedAsset.currentHolder],
+                    ].map(([k, v]) => (
                       <div key={k} className="bg-white/3 rounded-xl p-3">
                         <p className="text-[11px] text-[#8e9192] mb-0.5">{k}</p>
                         <p className="text-[13px] text-[#e5e2e1] font-medium">{v}</p>
@@ -213,8 +229,12 @@ export default function AssetsPage() {
                 <section>
                   <h3 className="text-[11px] font-semibold text-[#8e9192] uppercase tracking-wider mb-3">Purchase Details</h3>
                   <div className="grid grid-cols-2 gap-3">
-                    {[["Vendor", selectedAsset.vendor], ["Purchase Date", selectedAsset.purchaseDate],
-                      ["Cost", `₹${selectedAsset.cost.toLocaleString()}`], ["Serial Number", selectedAsset.serialNumber]].map(([k, v]) => (
+                    {[
+                      ["Vendor",        selectedAsset.vendor],
+                      ["Purchase Date", selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate).toLocaleDateString("en-IN") : "—"],
+                      ["Cost",          `₹${Number(selectedAsset.cost).toLocaleString("en-IN")}`],
+                      ["Serial Number", selectedAsset.serialNumber],
+                    ].map(([k, v]) => (
                       <div key={k} className="bg-white/3 rounded-xl p-3">
                         <p className="text-[11px] text-[#8e9192] mb-0.5">{k}</p>
                         <p className="text-[13px] text-[#e5e2e1] font-medium font-mono text-[12px]">{v}</p>
@@ -226,7 +246,9 @@ export default function AssetsPage() {
                   <h3 className="text-[11px] font-semibold text-[#8e9192] uppercase tracking-wider mb-3">Warranty</h3>
                   <div className="bg-white/3 rounded-xl p-3">
                     <p className="text-[11px] text-[#8e9192] mb-0.5">Warranty Expiry</p>
-                    <p className="text-[13px] text-[#e5e2e1] font-medium">{selectedAsset.warrantyExpiry}</p>
+                    <p className="text-[13px] text-[#e5e2e1] font-medium">
+                      {selectedAsset.warrantyExpiry ? new Date(selectedAsset.warrantyExpiry).toLocaleDateString("en-IN") : "—"}
+                    </p>
                   </div>
                 </section>
                 <section>
@@ -238,15 +260,18 @@ export default function AssetsPage() {
                 </section>
               </div>
               <div className="px-6 py-4 border-t border-white/8 flex flex-wrap gap-2">
-                {[
-                  { label: "Edit", icon: Pencil, cls: "bg-white/8 text-[#e5e2e1] hover:bg-white/12" },
-                  { label: "Allocate", icon: ArrowLeftRight, cls: "bg-[#00f0ff]/15 text-[#00f0ff] hover:bg-[#00f0ff]/25" },
-                  { label: "Maintenance", icon: Wrench, cls: "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20" },
+                {canRegisterAssets && [
+                  { label: "Edit",        icon: Pencil,        cls: "bg-white/8 text-[#e5e2e1] hover:bg-white/12" },
+                  { label: "Allocate",    icon: ArrowLeftRight, cls: "bg-[#00f0ff]/15 text-[#00f0ff] hover:bg-[#00f0ff]/25" },
+                  { label: "Maintenance", icon: Wrench,         cls: "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20" },
                 ].map(({ label, icon: Icon, cls }) => (
                   <button key={label} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors ${cls}`}>
                     <Icon size={13} />{label}
                   </button>
                 ))}
+                {!canRegisterAssets && (
+                  <p className="text-[12px] text-[#8e9192]">Contact your Asset Manager to make changes.</p>
+                )}
               </div>
             </motion.div>
           </>
@@ -261,41 +286,44 @@ export default function AssetsPage() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             {([
-              ["Asset Name *", "name", "text"],
-              ["Serial Number", "serialNumber", "text"],
-              ["Vendor", "vendor", "text"],
-              ["Purchase Date", "purchaseDate", "date"],
-              ["Cost", "cost", "number"],
-              ["Location", "location", "text"],
-              ["Warranty Expiry", "warrantyExpiry", "date"],
+              ["Asset Name *",    "name",          "text"],
+              ["Serial Number *", "serialNumber",  "text"],
+              ["Vendor",         "vendor",         "text"],
+              ["Purchase Date",  "purchaseDate",   "date"],
+              ["Cost (₹)",       "cost",           "number"],
+              ["Location",       "location",       "text"],
+              ["Warranty Expiry","warrantyExpiry", "date"],
             ] as [string, keyof typeof emptyForm, string][]).map(([label, key, type]) => (
               <div key={key} className="space-y-1.5">
                 <Label className="text-[#8e9192] text-[12px]">{label}</Label>
-                <input
-                  type={type}
-                  value={form[key]}
+                <input type={type} value={form[key]}
                   onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                   className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] placeholder-[#555] focus:outline-none focus:border-[#00f0ff]/40"
                   placeholder={`Enter ${label.replace(" *", "").toLowerCase()}…`}
                 />
               </div>
             ))}
+
+            {/* Category — sends categoryId */}
             <div className="space-y-1.5">
               <Label className="text-[#8e9192] text-[12px]">Category *</Label>
-              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+              <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40">
                 <option value="" className="bg-[#1c1b1b]">Select category…</option>
-                {categories.map(c => <option key={c.id} value={c.name} className="bg-[#1c1b1b]">{c.name}</option>)}
+                {categories.map(c => <option key={c.id} value={c.id} className="bg-[#1c1b1b]">{c.name}</option>)}
               </select>
             </div>
+
+            {/* Department — sends departmentId */}
             <div className="space-y-1.5">
               <Label className="text-[#8e9192] text-[12px]">Department *</Label>
-              <select value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
+              <select value={form.departmentId} onChange={e => setForm(f => ({ ...f, departmentId: e.target.value }))}
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40">
                 <option value="" className="bg-[#1c1b1b]">Select department…</option>
-                {departments.map(d => <option key={d.id} value={d.name} className="bg-[#1c1b1b]">{d.name}</option>)}
+                {departments.map(d => <option key={d.id} value={d.id} className="bg-[#1c1b1b]">{d.name}</option>)}
               </select>
             </div>
+
             <div className="col-span-2 space-y-1.5">
               <Label className="text-[#8e9192] text-[12px]">Description</Label>
               <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}

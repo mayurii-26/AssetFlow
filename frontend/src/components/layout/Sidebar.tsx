@@ -5,30 +5,53 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Building2, Package, ArrowLeftRight,
   CalendarClock, Wrench, ClipboardCheck, BarChart3,
-  Bell, ChevronLeft, ChevronRight, Zap, LogOut
+  Bell, ChevronLeft, ChevronRight, Zap, LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-const navItems = [
-  { href: "/dashboard",     label: "Dashboard",    icon: LayoutDashboard },
-  { href: "/organization",  label: "Organization", icon: Building2 },
-  { href: "/assets",        label: "Assets",       icon: Package },
-  { href: "/allocation",    label: "Allocation",   icon: ArrowLeftRight },
-  { href: "/booking",       label: "Booking",      icon: CalendarClock },
-  { href: "/maintenance",   label: "Maintenance",  icon: Wrench },
-  { href: "/audit",         label: "Audit",        icon: ClipboardCheck },
-  { href: "/reports",       label: "Reports",      icon: BarChart3 },
-  { href: "/notifications", label: "Notifications",icon: Bell },
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  admin:           "bg-red-500/15 text-red-400 border-red-500/25",
+  asset_manager:   "bg-[#00f0ff]/10 text-[#00f0ff] border-[#00f0ff]/25",
+  department_head: "bg-purple-500/10 text-purple-400 border-purple-500/25",
+  employee:        "bg-white/8 text-[#8e9192] border-white/10",
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  admin:           "Admin",
+  asset_manager:   "Asset Manager",
+  department_head: "Dept Head",
+  employee:        "Employee",
+};
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles: string[]; // which roles can see this item — empty = all roles
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard, roles: [] },
+  { href: "/organization",  label: "Organization",  icon: Building2,       roles: ["admin"] },
+  { href: "/assets",        label: "Assets",        icon: Package,         roles: [] },
+  { href: "/allocation",    label: "Allocation",    icon: ArrowLeftRight,  roles: [] },
+  { href: "/booking",       label: "Booking",       icon: CalendarClock,   roles: [] },
+  { href: "/maintenance",   label: "Maintenance",   icon: Wrench,          roles: [] },
+  { href: "/audit",         label: "Audit",         icon: ClipboardCheck,  roles: [] },
+  { href: "/reports",       label: "Reports",       icon: BarChart3,       roles: [] },
+  { href: "/notifications", label: "Notifications", icon: Bell,            roles: [] },
 ];
 
 export default function Sidebar() {
-  const pathname  = usePathname();
-  const router    = useRouter();
-  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const router   = useRouter();
+  const { logout } = useAuth();
+  const { user, role } = useRole();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = () => {
@@ -37,10 +60,13 @@ export default function Sidebar() {
     router.replace("/auth/login");
   };
 
-  // Initials from org name for the logo badge
-  const orgInitials = user?.organization
-    ? user.organization.split(" ").slice(0, 2).map(w => w[0].toUpperCase()).join("")
-    : "AF";
+  // Filter nav items by role
+  const visibleItems = NAV_ITEMS.filter(item =>
+    item.roles.length === 0 || item.roles.includes(role)
+  );
+
+  const roleBadge = ROLE_BADGE_COLORS[role] ?? ROLE_BADGE_COLORS.employee;
+  const roleLabel = ROLE_LABELS[role] ?? role;
 
   return (
     <motion.aside
@@ -60,7 +86,7 @@ export default function Sidebar() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
-              className="font-bold text-[15px] text-foreground tracking-tight whitespace-nowrap"
+              className="overflow-hidden"
             >
               <p className="font-bold text-[14px] text-foreground tracking-tight whitespace-nowrap leading-tight">
                 {user?.organization ?? "AssetFlow"}
@@ -75,7 +101,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link key={href} href={href}>
@@ -98,9 +124,7 @@ export default function Sidebar() {
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="text-[13px] font-medium whitespace-nowrap"
                     >
                       {label}
@@ -120,7 +144,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User info + logout */}
-      <div className="px-2 pb-3 border-t border-border pt-3 space-y-1">
+      <div className="px-2 pb-3 border-t border-white/8 pt-3 space-y-1">
         {/* User card */}
         <div className={cn(
           "flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--input)]",
@@ -132,41 +156,15 @@ export default function Sidebar() {
           <AnimatePresence>
             {!collapsed && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="overflow-hidden flex-1 min-w-0"
               >
-                <p className="text-[12px] font-medium text-foreground truncate">{user?.name ?? "—"}</p>
-                <p className="text-[10px] text-muted-foreground capitalize truncate">{user?.role ?? "—"}</p>
+                <p className="text-[12px] font-medium text-[#e5e2e1] truncate">{user?.name ?? "—"}</p>
+                <p className="text-[10px] text-[#8e9192] capitalize truncate">{user?.role ?? "—"}</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-
-        {/* Logout button */}
-        <button
-          onClick={handleLogout}
-          className={cn(
-            "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-all duration-200 text-[13px]",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          <LogOut size={15} className="shrink-0" />
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="whitespace-nowrap"
-              >
-                Sign Out
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
-      </div>
 
       {/* Collapse toggle */}
       <div className="px-2 py-4 border-t border-border">

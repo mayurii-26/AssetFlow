@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import { reportsApi, type DashboardSummary } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useRole } from "@/hooks/useRole";
 
 const STATUS_COLORS: Record<string, string> = {
   Available:         "#4ade80",
@@ -34,6 +35,7 @@ interface NearRetirementAsset { id: string; name: string; category: string; warr
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const { canViewFullReports } = useRole();
 
   const [summary,      setSummary]      = useState<DashboardSummary | null>(null);
   const [utilization,  setUtilization]  = useState<UtilRow[]>([]);
@@ -96,24 +98,26 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <PageHeader title="Reports & Analytics" description="Asset utilization, trends, and insights" icon={BarChart3}>
-        <div className="flex items-center gap-2">
-          <select
-            value={deptFilter}
-            onChange={e => setDeptFilter(e.target.value)}
-            className="px-3 py-2 bg-white/5 border border-white/8 rounded-full text-[13px] text-[#e5e2e1] focus:outline-none"
-          >
-            {departments.map(d => (
-              <option key={d} className="bg-[#1c1b1b]">{d}</option>
-            ))}
-          </select>
-          <motion.button
-            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-4 py-2 bg-white/8 border border-white/10 text-[#e5e2e1] rounded-full text-[13px] font-medium"
-          >
-            <Download size={14} /> Export
-          </motion.button>
-        </div>
+      <PageHeader title="Reports & Analytics" description={canViewFullReports ? "Asset utilization, trends, and insights" : "Your asset summary"} icon={BarChart3}>
+        {canViewFullReports && (
+          <div className="flex items-center gap-2">
+            <select
+              value={deptFilter}
+              onChange={e => setDeptFilter(e.target.value)}
+              className="px-3 py-2 bg-white/5 border border-white/8 rounded-full text-[13px] text-[#e5e2e1] focus:outline-none"
+            >
+              {departments.map(d => (
+                <option key={d} className="bg-[#1c1b1b]">{d}</option>
+              ))}
+            </select>
+            <motion.button
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-2 px-4 py-2 bg-white/8 border border-white/10 text-[#e5e2e1] rounded-full text-[13px] font-medium"
+            >
+              <Download size={14} /> Export
+            </motion.button>
+          </div>
+        )}
       </PageHeader>
 
       {/* Summary KPIs */}
@@ -171,7 +175,8 @@ export default function ReportsPage() {
         )}
       </div>
 
-      {/* Charts row 1 */}
+      {/* Charts row 1 — full analytics only */}
+      {canViewFullReports && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Utilization by Department */}
         <motion.div
@@ -241,6 +246,7 @@ export default function ReportsPage() {
           )}
         </motion.div>
       </div>
+      )}
 
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -319,6 +325,16 @@ export default function ReportsPage() {
           )}
         </motion.div>
       </div>
+      )} {/* end canViewFullReports charts */}
+
+      {/* Restricted view for EMPLOYEE / DEPT_HEAD */}
+      {!canViewFullReports && (
+        <div className="glass-panel rounded-2xl p-6 border border-white/8 text-center">
+          <BarChart3 size={32} className="text-[#444748] mx-auto mb-3" />
+          <p className="text-[14px] font-semibold text-[#e5e2e1] mb-1">Full Analytics Restricted</p>
+          <p className="text-[13px] text-[#8e9192]">Org-wide reports are available to Admins and Asset Managers only.</p>
+        </div>
+      )}
 
       {/* Org context footer */}
       {user && (

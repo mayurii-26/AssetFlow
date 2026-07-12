@@ -25,10 +25,12 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  allocations       Allocation[]
-  transfersFrom     TransferRequest[] @relation("TransferFrom")
-  transfersTo       TransferRequest[] @relation("TransferTo")
-  bookings          Booking[]
+  allocations              Allocation[]
+  allocationRequests       AllocationRequest[] @relation("AllocationRequests")
+  allocationApprovals      AllocationRequest[] @relation("AllocationApprovals")
+  transfersFrom            TransferRequest[] @relation("TransferFrom")
+  transfersTo              TransferRequest[] @relation("TransferTo")
+  bookings                 Booking[]
   maintenanceTasks  MaintenanceTask[]
   auditItems        AuditItem[]
   notifications     Notification[]
@@ -121,6 +123,7 @@ model Asset {
   updatedAt      DateTime    @updatedAt
 
   allocations      Allocation[]
+  allocationRequests AllocationRequest[]
   transferRequests TransferRequest[]
   maintenanceTasks MaintenanceTask[]
   auditItems       AuditItem[]
@@ -160,6 +163,26 @@ model Allocation {
 enum AllocationStatus {
   ACTIVE
   RETURNED
+}
+
+model AllocationRequest {
+  id            String        @id @default(cuid())
+  asset         Asset         @relation(fields: [assetId], references: [id])
+  assetId       String
+  requestedBy   User          @relation("AllocationRequests", fields: [requestedById], references: [id])
+  requestedById String
+  approvedBy    User?         @relation("AllocationApprovals", fields: [approvedById], references: [id])
+  approvedById  String?
+  toEmployee    String
+  department    String?
+  reason        String?
+  notes         String?
+  priority      Priority      @default(MEDIUM)
+  status        RequestStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("allocation_requests")
 }
 
 model TransferRequest {

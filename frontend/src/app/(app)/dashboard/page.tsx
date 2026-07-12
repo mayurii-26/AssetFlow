@@ -69,6 +69,9 @@ export default function DashboardPage() {
     : [];
 
   const alertSeverityBg: Record<string, string> = {
+    HIGH:   "bg-red-500/8 border-red-500/20",
+    MEDIUM: "bg-yellow-500/8 border-yellow-500/20",
+    LOW:    "bg-white/5 border-white/10",
     high:   "bg-red-500/8 border-red-500/20",
     medium: "bg-yellow-500/8 border-yellow-500/20",
     low:    "bg-white/5 border-white/10",
@@ -135,7 +138,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {alerts.map(alert => (
                 <div key={alert.id} className={`flex items-center gap-3 p-3 rounded-xl border ${alertSeverityBg[alert.priority]}`}>
-                  <AlertTriangle size={14} className={alert.priority === "high" ? "text-red-400 shrink-0" : "text-yellow-400 shrink-0"} />
+                  <AlertTriangle size={14} className={["HIGH","high"].includes(alert.priority) ? "text-red-400 shrink-0" : "text-yellow-400 shrink-0"} />
                   <span className="text-[13px] text-[#e5e2e1]">{alert.title} — {alert.description}</span>
                 </div>
               ))}
@@ -200,7 +203,7 @@ export default function DashboardPage() {
                     <p className="text-[13px] font-medium text-[#e5e2e1]">{log.action}</p>
                     <div className="flex items-center gap-1.5 text-[11px] text-[#8e9192]">
                       <Clock size={11} />
-                      {new Date(log.timestamp).toLocaleString("en-IN", {
+                      {new Date(log.timestamp ?? log.createdAt).toLocaleString("en-IN", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                       })}
                     </div>

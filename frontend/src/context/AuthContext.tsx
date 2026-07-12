@@ -5,7 +5,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "employee";
+  role: "admin" | "asset_manager" | "department_head" | "employee";
   organization: string;
   initials: string;
 }
@@ -14,8 +14,8 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signup: (name: string, email: string, password: string, organization: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string, organization: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -40,11 +40,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate from localStorage on mount
+  // Hydrate from localStorage (rememberMe) or sessionStorage (session-only) on mount
   useEffect(() => {
     try {
-      const storedToken = localStorage.getItem(TOKEN_KEY);
-      const storedUser  = localStorage.getItem(USER_KEY);
+      const storedToken = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+      const storedUser  = localStorage.getItem(USER_KEY)  ?? sessionStorage.getItem(USER_KEY);
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
@@ -53,15 +53,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     finally { setIsLoading(false); }
   }, []);
 
-  const persist = (t: string, u: AuthUser) => {
-    localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
-    setCookie(TOKEN_KEY, t);
+  const persist = (t: string, u: AuthUser, rememberMe = true) => {
+    if (rememberMe) {
+      localStorage.setItem(TOKEN_KEY, t);
+      localStorage.setItem(USER_KEY, JSON.stringify(u));
+    } else {
+      // Session only — cleared when browser tab closes
+      sessionStorage.setItem(TOKEN_KEY, t);
+      sessionStorage.setItem(USER_KEY, JSON.stringify(u));
+    }
+    setCookie(TOKEN_KEY, t, rememberMe ? 7 : 0); // session cookie when rememberMe=false
     setToken(t);
     setUser(u);
   };
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
     try {
       const res  = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
@@ -70,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok || !data.success) return { success: false, error: data.error || "Invalid credentials" };
-      persist(data.token, data.user);
+      persist(data.token, data.user, rememberMe);
       return { success: true };
     } catch {
       return { success: false, error: "Cannot reach server. Is the backend running?" };
@@ -86,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok || !data.success) return { success: false, error: data.error || "Signup failed" };
-      persist(data.token, data.user);
-      return { success: true };
+      // Do NOT persist or auto-login — user must log in explicitly
+      return { success: true, message: data.message as string };
     } catch {
       return { success: false, error: "Cannot reach server. Is the backend running?" };
     }
@@ -96,6 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
     deleteCookie(TOKEN_KEY);
     setToken(null);
     setUser(null);

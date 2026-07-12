@@ -1,19 +1,24 @@
 /**
  * Shared API client for AssetFlow frontend.
- * All fetch helpers attach the JWT token from localStorage automatically.
+ * Types aligned with Prisma DB schema (v2 — Prisma + MySQL backend).
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-function getToken(): string | null {
+export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("assetflow_token");
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+export function getUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const u = localStorage.getItem("assetflow_user");
+    return u ? JSON.parse(u).id : null;
+  } catch { return null; }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -21,7 +26,7 @@ async function request<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res  = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const data = await res.json();
 
   if (!res.ok || data.success === false) {
@@ -31,23 +36,44 @@ async function request<T>(
 }
 
 // ── Assets ────────────────────────────────────────────────────────────────────
+// DB returns category & department as nested objects when using include
 
 export interface Asset {
   id: string;
   name: string;
-  category: string;
-  department: string;
-  status: "Available" | "Allocated" | "Under Maintenance" | "Retired" | "Pending Transfer";
+  // Prisma returns nested objects when include: { category, department }
+  category:     { id: string; name: string; prefix: string } | string;
+  categoryId:   string;
+  department:   { id: string; name: string } | string;
+  departmentId: string;
+  status: "AVAILABLE" | "ALLOCATED" | "UNDER_MAINTENANCE" | "RETIRED" | "PENDING_TRANSFER";
   currentHolder: string;
   location: string;
   purchaseDate: string;
   vendor: string;
   cost: number;
   serialNumber: string;
-  warrantyExpiry: string;
-  description: string;
+  warrantyExpiry: string | null;
+  description: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Safely extract asset category name whether response is nested or flat */
+export function assetCategoryName(a: Asset): string {
+  return typeof a.category === "object" ? a.category.name : (a.category ?? "—");
+}
+export function assetDepartmentName(a: Asset): string {
+  return typeof a.department === "object" ? a.department.name : (a.department ?? "—");
+}
+/** Map Prisma SCREAMING_SNAKE status to display string */
+export function assetStatusLabel(s: Asset["status"]): string {
+  const map: Record<string, string> = {
+    AVAILABLE: "Available", ALLOCATED: "Allocated",
+    UNDER_MAINTENANCE: "Under Maintenance", RETIRED: "Retired",
+    PENDING_TRANSFER: "Pending Transfer",
+  };
+  return map[s] ?? s;
 }
 
 export const assetsApi = {
@@ -57,15 +83,17 @@ export const assetsApi = {
   },
   get: (id: string) =>
     request<{ success: true; data: Asset }>(`/api/assets/${id}`),
-  create: (body: Partial<Asset>) =>
+  create: (body: {
+    name: string; categoryId: string; departmentId: string; serialNumber: string;
+    vendor?: string; purchaseDate?: string; cost?: number; location?: string;
+    warrantyExpiry?: string; description?: string;
+  }) =>
     request<{ success: true; data: Asset; message: string }>("/api/assets", {
-      method: "POST",
-      body: JSON.stringify(body),
+      method: "POST", body: JSON.stringify(body),
     }),
   update: (id: string, body: Partial<Asset>) =>
     request<{ success: true; data: Asset; message: string }>(`/api/assets/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
+      method: "PATCH", body: JSON.stringify(body),
     }),
   remove: (id: string) =>
     request<{ success: true; message: string }>(`/api/assets/${id}`, { method: "DELETE" }),
@@ -77,27 +105,33 @@ export interface Department {
   id: string;
   name: string;
   head: string;
-  parent: string;
-  status: "Active" | "Inactive";
+  parent: string | null;
+  status: "ACTIVE" | "INACTIVE";
   createdAt: string;
 }
 
 export interface Employee {
   id: string;
+  employeeCode: string;
   name: string;
-  department: string;
+  departmentId: string;
+  department: { id: string; name: string } | string; // nested when include: { department }
   designation: string;
   email: string;
-  status: "Active" | "Inactive";
+  status: "ACTIVE" | "INACTIVE";
   createdAt: string;
+}
+
+export function employeeDepartmentName(e: Employee): string {
+  return typeof e.department === "object" ? e.department.name : (e.department ?? "—");
 }
 
 export interface Category {
   id: string;
   name: string;
   prefix: string;
-  description: string;
-  status: "Active" | "Inactive";
+  description: string | null;
+  status: "ACTIVE" | "INACTIVE";
   createdAt: string;
 }
 
@@ -105,56 +139,44 @@ export const orgApi = {
   departments: {
     list: () =>
       request<{ success: true; data: Department[]; total: number }>("/api/organization/departments"),
-    create: (body: Partial<Department>) =>
+    create: (body: { name: string; head?: string; parent?: string }) =>
       request<{ success: true; data: Department }>("/api/organization/departments", {
-        method: "POST",
-        body: JSON.stringify(body),
+        method: "POST", body: JSON.stringify(body),
       }),
     update: (id: string, body: Partial<Department>) =>
       request<{ success: true; data: Department }>(`/api/organization/departments/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
+        method: "PATCH", body: JSON.stringify(body),
       }),
     remove: (id: string) =>
-      request<{ success: true; message: string }>(`/api/organization/departments/${id}`, {
-        method: "DELETE",
-      }),
+      request<{ success: true; message: string }>(`/api/organization/departments/${id}`, { method: "DELETE" }),
   },
   employees: {
     list: () =>
       request<{ success: true; data: Employee[]; total: number }>("/api/organization/employees"),
-    create: (body: Partial<Employee>) =>
+    create: (body: { name: string; email: string; departmentId: string; designation?: string }) =>
       request<{ success: true; data: Employee }>("/api/organization/employees", {
-        method: "POST",
-        body: JSON.stringify(body),
+        method: "POST", body: JSON.stringify(body),
       }),
-    update: (id: string, body: Partial<Employee>) =>
+    update: (id: string, body: { name?: string; email?: string; departmentId?: string; designation?: string; status?: string }) =>
       request<{ success: true; data: Employee }>(`/api/organization/employees/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
+        method: "PATCH", body: JSON.stringify(body),
       }),
     remove: (id: string) =>
-      request<{ success: true; message: string }>(`/api/organization/employees/${id}`, {
-        method: "DELETE",
-      }),
+      request<{ success: true; message: string }>(`/api/organization/employees/${id}`, { method: "DELETE" }),
   },
   categories: {
     list: () =>
       request<{ success: true; data: Category[]; total: number }>("/api/organization/categories"),
-    create: (body: Partial<Category>) =>
+    create: (body: { name: string; prefix: string; description?: string }) =>
       request<{ success: true; data: Category }>("/api/organization/categories", {
-        method: "POST",
-        body: JSON.stringify(body),
+        method: "POST", body: JSON.stringify(body),
       }),
     update: (id: string, body: Partial<Category>) =>
       request<{ success: true; data: Category }>(`/api/organization/categories/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
+        method: "PATCH", body: JSON.stringify(body),
       }),
     remove: (id: string) =>
-      request<{ success: true; message: string }>(`/api/organization/categories/${id}`, {
-        method: "DELETE",
-      }),
+      request<{ success: true; message: string }>(`/api/organization/categories/${id}`, { method: "DELETE" }),
   },
 };
 
@@ -163,50 +185,87 @@ export const orgApi = {
 export interface Allocation {
   id: string;
   assetId: string;
-  assetName: string;
-  fromEmployee: string;
+  asset: { id: string; name: string } | null;
+  allocatedById: string;
   toEmployee: string;
   department: string;
-  date: string;
-  reason: string;
-  status: "Active" | "Returned";
-  notes: string;
+  reason: string | null;
+  notes: string | null;
+  status: "ACTIVE" | "RETURNED";
+  allocatedAt: string;
+  returnedAt: string | null;
 }
 
 export interface TransferRequest {
   id: string;
   assetId: string;
-  assetName: string;
+  asset: { id: string; name: string } | null;
+  requestedById: string;
+  approvedById: string | null;
   fromEmployee: string;
   toEmployee: string;
   department: string;
   reason: string;
-  priority: string;
-  status: "Pending" | "Approved" | "Rejected";
+  notes: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
-  notes: string;
+  updatedAt: string;
+}
+
+// Allocation request raised by an employee, approved/rejected by admin
+export interface AllocationRequest {
+  id: string;
+  assetId: string;
+  asset: { id: string; name: string } | null;
+  requestedById: string;
+  approvedById: string | null;
+  toEmployee: string;
+  department: string | null;
+  reason: string | null;
+  notes: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const allocationApi = {
   list: () =>
     request<{ success: true; data: Allocation[]; total: number }>("/api/allocation"),
-  create: (body: Partial<Allocation>) =>
+  create: (body: { assetId: string; toEmployee: string; allocatedById: string; department?: string; reason?: string }) =>
     request<{ success: true; data: Allocation; message: string }>("/api/allocation", {
-      method: "POST",
-      body: JSON.stringify(body),
+      method: "POST", body: JSON.stringify(body),
     }),
+  requests: {
+    list: (params?: { status?: string; requestedById?: string }) => {
+      const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
+      return request<{ success: true; data: AllocationRequest[]; total: number }>(`/api/allocation/requests${qs}`);
+    },
+    create: (body: { assetId: string; requestedById: string; toEmployee: string; department?: string; reason?: string; priority?: string }) =>
+      request<{ success: true; data: AllocationRequest; message: string }>("/api/allocation/requests", {
+        method: "POST", body: JSON.stringify(body),
+      }),
+    approve: (id: string, approvedById?: string) =>
+      request<{ success: true; data: AllocationRequest; message: string }>(`/api/allocation/requests/${id}/approve`, {
+        method: "PATCH", body: JSON.stringify({ approvedById }),
+      }),
+    reject: (id: string, approvedById?: string) =>
+      request<{ success: true; data: AllocationRequest; message: string }>(`/api/allocation/requests/${id}/reject`, {
+        method: "PATCH", body: JSON.stringify({ approvedById }),
+      }),
+  },
   transfers: {
     list: () =>
       request<{ success: true; data: TransferRequest[]; total: number }>("/api/allocation/transfers"),
-    create: (body: Partial<TransferRequest>) =>
+    create: (body: { assetId: string; toEmployee: string; requestedById: string; reason?: string; priority?: string }) =>
       request<{ success: true; data: TransferRequest; message: string }>("/api/allocation/transfers", {
-        method: "POST",
-        body: JSON.stringify(body),
+        method: "POST", body: JSON.stringify(body),
       }),
-    update: (id: string, status: "Approved" | "Rejected") =>
+    update: (id: string, status: "APPROVED" | "REJECTED", approvedById?: string) =>
       request<{ success: true; data: TransferRequest; message: string }>(
         `/api/allocation/transfers/${id}`,
-        { method: "PATCH", body: JSON.stringify({ status }) }
+        { method: "PATCH", body: JSON.stringify({ status, approvedById }) }
       ),
   },
 };
@@ -216,15 +275,26 @@ export const allocationApi = {
 export interface MaintenanceTask {
   id: string;
   assetId: string;
-  assetName: string;
+  asset: { id: string; name: string } | null;
+  raisedById: string;
   issue: string;
-  priority: "Low" | "Medium" | "High" | "Critical";
-  technician: string;
-  status: "Pending" | "Approved" | "Technician Assigned" | "In Progress" | "Resolved";
+  description: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  technician: string | null;
+  status: "PENDING" | "APPROVED" | "TECHNICIAN_ASSIGNED" | "IN_PROGRESS" | "RESOLVED";
+  department: string;
+  resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  department: string;
-  description: string;
+}
+
+export function maintenanceStatusLabel(s: MaintenanceTask["status"]): string {
+  const map: Record<string, string> = {
+    PENDING: "Pending", APPROVED: "Approved",
+    TECHNICIAN_ASSIGNED: "Technician Assigned",
+    IN_PROGRESS: "In Progress", RESOLVED: "Resolved",
+  };
+  return map[s] ?? s;
 }
 
 export const maintenanceApi = {
@@ -232,15 +302,13 @@ export const maintenanceApi = {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return request<{ success: true; data: MaintenanceTask[]; total: number }>(`/api/maintenance${qs}`);
   },
-  create: (body: Partial<MaintenanceTask>) =>
+  create: (body: { assetId: string; issue: string; raisedById: string; priority?: string; technician?: string; department?: string; description?: string }) =>
     request<{ success: true; data: MaintenanceTask; message: string }>("/api/maintenance", {
-      method: "POST",
-      body: JSON.stringify(body),
+      method: "POST", body: JSON.stringify(body),
     }),
-  update: (id: string, body: Partial<MaintenanceTask>) =>
+  update: (id: string, body: { status?: string; technician?: string }) =>
     request<{ success: true; data: MaintenanceTask; message: string }>(`/api/maintenance/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
+      method: "PATCH", body: JSON.stringify(body),
     }),
   remove: (id: string) =>
     request<{ success: true; message: string }>(`/api/maintenance/${id}`, { method: "DELETE" }),
@@ -250,13 +318,14 @@ export const maintenanceApi = {
 
 export interface Notification {
   id: string;
-  type: "alert" | "approval" | "booking" | "maintenance" | "audit";
+  userId: string;
+  type: "ALERT" | "APPROVAL" | "BOOKING" | "MAINTENANCE" | "AUDIT";
   title: string;
   description: string;
-  timestamp: string;
-  priority: "low" | "medium" | "high";
+  priority: "LOW" | "MEDIUM" | "HIGH";
   read: boolean;
   module: string;
+  createdAt: string; // DB uses createdAt not timestamp
 }
 
 export const notificationsApi = {
@@ -267,18 +336,15 @@ export const notificationsApi = {
     );
   },
   markRead: (id: string) =>
-    request<{ success: true; data: Notification }>(`/api/notifications/${id}/read`, {
-      method: "PATCH",
-    }),
+    request<{ success: true; data: Notification }>(`/api/notifications/${id}/read`, { method: "PATCH" }),
   markAllRead: () =>
-    request<{ success: true; message: string }>("/api/notifications/mark-all-read", {
-      method: "PATCH",
-    }),
+    request<{ success: true; message: string }>("/api/notifications/mark-all-read", { method: "PATCH" }),
   remove: (id: string) =>
     request<{ success: true; message: string }>(`/api/notifications/${id}`, { method: "DELETE" }),
 };
 
 // ── Activity Logs ─────────────────────────────────────────────────────────────
+// activity route is still in-memory (not Prisma), keeping old shape
 
 export interface ActivityLog {
   id: string;
@@ -287,7 +353,8 @@ export interface ActivityLog {
   user: string;
   module: string;
   severity: "info" | "warning" | "error";
-  timestamp: string;
+  timestamp: string;   // in-memory activity route
+  createdAt?: string;  // Prisma activityLog route (if used)
 }
 
 export const activityApi = {
@@ -338,37 +405,39 @@ export interface Resource {
   type: string;
   capacity: number;
   location: string;
-  status: "Available" | "Booked" | "Under Maintenance";
+  status: "AVAILABLE" | "BOOKED" | "UNDER_MAINTENANCE";
 }
 
 export interface Booking {
   id: string;
   resourceId: string;
-  resourceName: string;
-  bookedBy: string;
+  resource: { id: string; name: string } | null;
+  bookedById: string;
   department: string;
   purpose: string;
   startTime: string;
   endTime: string;
   attendees: number;
-  status: "Pending" | "Confirmed" | "Cancelled";
-  notes: string;
+  notes: string | null;
+  status: "PENDING" | "CONFIRMED" | "CANCELLED";
+  createdAt: string;
 }
 
 export const bookingApi = {
-  list: (resourceId?: string) => {
-    const qs = resourceId ? `?resourceId=${resourceId}` : "";
+  list: (params?: { resourceId?: string; bookedById?: string }) => {
+    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
     return request<{ success: true; data: Booking[]; total: number }>(`/api/booking${qs}`);
   },
   resources: () =>
     request<{ success: true; data: Resource[]; total: number }>("/api/booking/resources"),
-  create: (body: Partial<Booking>) =>
+  create: (body: { resourceId: string; bookedById: string; department?: string; purpose?: string; startTime: string; endTime: string; attendees?: number; notes?: string }) =>
     request<{ success: true; data: Booking; message: string }>("/api/booking", {
-      method: "POST",
-      body: JSON.stringify(body),
+      method: "POST", body: JSON.stringify(body),
     }),
+  approve: (id: string) =>
+    request<{ success: true; data: Booking; message: string }>(`/api/booking/${id}/approve`, { method: "PATCH" }),
+  reject: (id: string) =>
+    request<{ success: true; data: Booking; message: string }>(`/api/booking/${id}/reject`, { method: "PATCH" }),
   cancel: (id: string) =>
-    request<{ success: true; data: Booking; message: string }>(`/api/booking/${id}/cancel`, {
-      method: "PATCH",
-    }),
+    request<{ success: true; data: Booking; message: string }>(`/api/booking/${id}/cancel`, { method: "PATCH" }),
 };
