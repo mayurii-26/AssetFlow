@@ -59,6 +59,29 @@ router.post("/signup", async (req: Request, res: Response) => {
     },
   });
 
+  // Auto-create an Employee record so admin can see this user in the directory
+  // Find or create a default department for self-registered users
+  let defaultDept = await prisma.department.findFirst({ where: { name: "General" } });
+  if (!defaultDept) {
+    defaultDept = await prisma.department.create({
+      data: { name: "General", head: "Admin", parent: null },
+    });
+  }
+
+  const empCount = await prisma.employee.count();
+  const emailExists = await prisma.employee.findUnique({ where: { email: email.toLowerCase().trim() } });
+  if (!emailExists) {
+    await prisma.employee.create({
+      data: {
+        employeeCode: `EMP-${String(empCount + 1).padStart(3, "0")}`,
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        departmentId: defaultDept.id,
+        designation: count === 0 ? "Administrator" : "Employee",
+      },
+    });
+  }
+
   const token = signToken(user);
   res.status(201).json({ success: true, token, user: publicUser(user), message: "Account created." });
 });
