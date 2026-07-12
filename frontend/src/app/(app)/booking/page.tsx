@@ -8,6 +8,7 @@ import { bookingApi, type Resource, type Booking } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 const emptyForm = {
   bookedBy: "", department: "", purpose: "",
@@ -15,6 +16,7 @@ const emptyForm = {
 };
 
 export default function BookingPage() {
+  const { user } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
@@ -88,7 +90,7 @@ export default function BookingPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader title="Resource Booking" description="Book meeting rooms, vehicles, equipment, and shared spaces" icon={CalendarClock}>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={() => { setBookingOpen(true); setForm(emptyForm); setFormError(""); }}
+          onClick={() => { setBookingOpen(true); setForm({ ...emptyForm, bookedBy: user?.name ?? "" }); setFormError(""); }}
           className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
           <Plus size={14} /> New Booking
         </motion.button>
@@ -244,7 +246,24 @@ export default function BookingPage() {
                 {resources.map(r => <option key={r.id} value={r.id} className="bg-[#1c1b1b]">{r.name}</option>)}
               </select>
             </div>
-            {([["Booked By *", "bookedBy", "text"], ["Department", "department", "text"], ["Purpose", "purpose", "text"],
+
+            {/* Booked By — pre-filled from logged-in user */}
+            <div className="space-y-1.5">
+              <Label className="text-[#8e9192] text-[12px]">
+                Booked By *
+                <span className="ml-2 text-[10px] text-[#00f0ff]/70 font-normal">auto-filled from your account</span>
+              </Label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={form.bookedBy}
+                  onChange={e => setForm(f => ({ ...f, bookedBy: e.target.value }))}
+                  className="w-full px-3 py-2 bg-[#00f0ff]/5 border border-[#00f0ff]/20 rounded-xl text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40"
+                />
+              </div>
+            </div>
+
+            {([["Department", "department", "text"], ["Purpose", "purpose", "text"],
                ["Start Time *", "startTime", "datetime-local"], ["End Time *", "endTime", "datetime-local"],
                ["Attendees", "attendees", "number"], ["Notes", "notes", "text"]] as [string, keyof typeof emptyForm, string][]).map(([label, key, type]) => (
               <div key={key} className="space-y-1.5">

@@ -8,6 +8,7 @@ import { maintenanceApi, assetsApi, type MaintenanceTask, type Asset } from "@/l
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 const columns = ["Pending", "Approved", "Technician Assigned", "In Progress", "Resolved"] as const;
 type ColType = typeof columns[number];
@@ -33,6 +34,7 @@ const priorityColors: Record<string, string> = {
 const emptyForm = { assetId: "", assetName: "", issue: "", description: "", priority: "Medium", technician: "", department: "" };
 
 export default function MaintenancePage() {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<MaintenanceTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<MaintenanceTask | null>(null);
@@ -118,7 +120,7 @@ export default function MaintenancePage() {
     <div className="space-y-5 max-w-[1400px] mx-auto">
       <PageHeader title="Maintenance" description="Track and manage asset maintenance requests" icon={Wrench}>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={() => { setNewOpen(true); setForm(emptyForm); setAssetSearch(""); setFormError(""); }}
+          onClick={() => { setNewOpen(true); setForm({ ...emptyForm, technician: user?.name ?? "" }); setAssetSearch(""); setFormError(""); }}
           className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
           <Plus size={14} /> Raise Request
         </motion.button>
@@ -273,9 +275,13 @@ export default function MaintenancePage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[#8e9192] text-[12px]">Technician</Label>
-                <input value={form.technician} onChange={sf("technician")} placeholder="Assign technician…"
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[13px] text-[#e5e2e1] placeholder-[#8e9192] focus:outline-none focus:border-[#00f0ff]/40" />
+                <Label className="text-[#8e9192] text-[12px]">
+                  Technician
+                  <span className="ml-2 text-[10px] text-[#00f0ff]/70 font-normal">pre-filled from your account</span>
+                </Label>
+                <input value={form.technician} onChange={sf("technician")}
+                  placeholder="Assign technician…"
+                  className="w-full px-3 py-2 bg-[#00f0ff]/5 border border-[#00f0ff]/20 rounded-xl text-[13px] text-[#e5e2e1] placeholder-[#8e9192] focus:outline-none focus:border-[#00f0ff]/40" />
               </div>
             </div>
             <div className="space-y-1.5">
