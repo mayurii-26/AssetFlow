@@ -13,6 +13,7 @@ import maintenanceRouter from "./routes/maintenance";
 import auditRouter from "./routes/audit";
 import notificationsRouter from "./routes/notifications";
 import reportsRouter from "./routes/reports";
+import activityRouter from "./routes/activity";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use("/api/maintenance",   maintenanceRouter);
 app.use("/api/audit",         auditRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/reports",       reportsRouter);
+app.use("/api/activity",      activityRouter);
 
 // ── 404 handler ─────────────────────────────────────────
 app.use((_req, res) => {

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
 import { assets } from "../data/seed";
 import { Asset, ApiResponse } from "../types";
+import { addLog } from "./activity";
 
 const router = Router();
 
@@ -15,7 +15,9 @@ router.get("/", (req: Request, res: Response) => {
   if (department && department !== "All") result = result.filter(a => a.department === department);
   if (search) {
     const q = (search as string).toLowerCase();
-    result = result.filter(a => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q));
+    result = result.filter(a =>
+      a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)
+    );
   }
 
   const response: ApiResponse<Asset[]> = { success: true, data: result, total: result.length };
@@ -52,6 +54,7 @@ router.post("/", (req: Request, res: Response) => {
     updatedAt: now,
   };
   assets.push(newAsset);
+  addLog("Asset Registered", `${name} (${newAsset.id}) added to ${category} — ${department}`, "System", "Assets", "info");
   res.status(201).json({ success: true, data: newAsset, message: "Asset registered successfully" });
 });
 
@@ -60,6 +63,7 @@ router.patch("/:id", (req: Request, res: Response) => {
   const idx = assets.findIndex(a => a.id === req.params.id);
   if (idx === -1) return res.status(404).json({ success: false, error: "Asset not found" });
   assets[idx] = { ...assets[idx], ...req.body, updatedAt: new Date().toISOString() };
+  addLog("Asset Updated", `${assets[idx].name} (${assets[idx].id}) details updated`, "System", "Assets", "info");
   res.json({ success: true, data: assets[idx], message: "Asset updated" });
 });
 
@@ -67,7 +71,8 @@ router.patch("/:id", (req: Request, res: Response) => {
 router.delete("/:id", (req: Request, res: Response) => {
   const idx = assets.findIndex(a => a.id === req.params.id);
   if (idx === -1) return res.status(404).json({ success: false, error: "Asset not found" });
-  assets.splice(idx, 1);
+  const [removed] = assets.splice(idx, 1);
+  addLog("Asset Removed", `${removed.name} (${removed.id}) removed from records`, "System", "Assets", "warning");
   res.json({ success: true, message: "Asset deleted" });
 });
 

@@ -1,25 +1,40 @@
 import { Router, Request, Response } from "express";
 import { assets } from "../data/seed";
+import { allocations, transferRequests } from "./allocation";
+import { bookings } from "./booking";
 
 const router = Router();
 
-// GET dashboard summary / KPIs
+// GET dashboard summary / KPIs — all values computed from live in-memory data
 router.get("/summary", (_req: Request, res: Response) => {
-  const available = assets.filter(a => a.status === "Available").length;
-  const allocated = assets.filter(a => a.status === "Allocated").length;
+  const available   = assets.filter(a => a.status === "Available").length;
+  const allocated   = assets.filter(a => a.status === "Allocated").length;
   const maintenance = assets.filter(a => a.status === "Under Maintenance").length;
-  const retired = assets.filter(a => a.status === "Retired").length;
-  const totalValue = assets.reduce((sum, a) => sum + a.cost, 0);
+  const retired     = assets.filter(a => a.status === "Retired").length;
+  const totalValue  = assets.reduce((sum, a) => sum + a.cost, 0);
+
+  const pendingTransfers = transferRequests.filter(t => t.status === "Pending").length;
+
+  const now = new Date();
+  const activeBookings = bookings.filter(
+    b => b.status === "Confirmed" && new Date(b.endTime) >= now
+  ).length;
+
+  // Upcoming returns = active allocations (assets currently out with employees)
+  const upcomingReturns = allocations.filter(a => a.status === "Active").length;
 
   res.json({
     success: true,
     data: {
       totalAssets: assets.length,
-      available, allocated, maintenance, retired,
+      available,
+      allocated,
+      maintenance,
+      retired,
       totalValue,
-      pendingTransfers: 2,
-      activeBookings: 4,
-      upcomingReturns: 3,
+      pendingTransfers,
+      activeBookings,
+      upcomingReturns,
     },
   });
 });
