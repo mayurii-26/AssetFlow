@@ -1,73 +1,86 @@
 import { Router, Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
-import { assets } from "../data/seed";
-import { Asset, ApiResponse } from "../types";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
-// GET /api/assets — list with optional filters
-router.get("/", (req: Request, res: Response) => {
-  const { status, category, department, search } = req.query;
-  let result = [...assets];
-
-  if (status && status !== "All") result = result.filter(a => a.status === status);
-  if (category && category !== "All") result = result.filter(a => a.category === category);
-  if (department && department !== "All") result = result.filter(a => a.department === department);
+// GET /api/assets
+router.get("/", async (req: Request, res: Response) => {
+  const { status, search } = req.query;
+  const where: Record<string, unknown> = {};
+  if (status && status !== "All") where.status = String(status).toUpperCase().replace(/ /g, "_");
   if (search) {
-    const q = (search as string).toLowerCase();
-    result = result.filter(a => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q));
+    where.OR = [
+      { name: { contains: String(search) } },
+      { id: { contains: String(search) } },
+    ];
   }
-
-  const response: ApiResponse<Asset[]> = { success: true, data: result, total: result.length };
-  res.json(response);
+  const data = await prisma.asset.findMany({
+    where,
+    include: { category: true, department: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ success: true, data, total: data.length });
 });
 
 // GET /api/assets/:id
-router.get("/:id", (req: Request, res: Response) => {
-  const asset = assets.find(a => a.id === req.params.id);
+router.get("/:id", async (req: Request, res: Response) => {
+  const asset = await prisma.asset.findUnique({
+    where: { id: req.params.id },
+    include: { category: true, department: true, allocations: true, maintenanceTasks: true },
+  });
   if (!asset) return res.status(404).json({ success: false, error: "Asset not found" });
   res.json({ success: true, data: asset });
 });
 
 // POST /api/assets
-router.post("/", (req: Request, res: Response) => {
-  const { name, category, department, vendor, purchaseDate, cost, serialNumber, warrantyExpiry, location, description } = req.body;
-  if (!name || !category || !department) {
-    return res.status(400).json({ success: false, error: "name, category, and department are required" });
-  }
-  const now = new Date().toISOString();
-  const newAsset: Asset = {
-    id: `AST-${String(assets.length + 1).padStart(3, "0")}`,
-    name, category, department,
-    status: "Available",
-    currentHolder: "—",
-    location: location || "—",
-    purchaseDate: purchaseDate || now.split("T")[0],
-    vendor: vendor || "—",
-    cost: Number(cost) || 0,
-    serialNumber: serialNumber || "—",
-    warrantyExpiry: warrantyExpiry || "—",
-    description: description || "",
-    createdAt: now,
-    updatedAt: now,
-  };
-  assets.push(newAsset);
-  res.status(201).json({ success: true, data: newAsset, message: "Asset registered successfully" });
+router.post("/", async (req: Request, res: Response) => {
+  const { name, categoryId, departmentId, vendor, purchaseDate, cost, serialNumber, warrantyExpiry, location, description } = req.body;
+  if (!name || !categoryId || !departmentId || !serialNumber)
+    return res.status(400).json({ success: false, error: "name, categoryId, departmentId and serialNumber are required" });
+
+  const category = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!category) return res.status(404).json({ success: false, error: "Category not found" });
+
+  const count = await prisma.asset.count({ where: { categoryId } });
+  const id = `${category.prefix}-${String(count + 1).padStart(4, "0")}`;
+
+  const asset = await prisma.asset.create({
+    data: {
+      id,
+      name,
+      categoryId,
+      departmentId,
+      vendor: vendor || "—",
+      purchaseDate: new Date(purchaseDate || Date.now()),
+      cost: Number(cost) || 0,
+      serialNumber,
+      warrantyExpiry: warrantyExpiry ? new Date(warrantyExpiry) : null,
+      location: location || "—",
+      description: description || "",
+    },
+  });
+  res.status(201).json({ success: true, data: asset, message: "Asset registered successfully" });
 });
 
 // PATCH /api/assets/:id
-router.patch("/:id", (req: Request, res: Response) => {
-  const idx = assets.findIndex(a => a.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ success: false, error: "Asset not found" });
-  assets[idx] = { ...assets[idx], ...req.body, updatedAt: new Date().toISOString() };
-  res.json({ success: true, data: assets[idx], message: "Asset updated" });
+router.patch("/:id", async (req: Request, res: Response) => {
+  const { purchaseDate, warrantyExpiry, cost, ...rest } = req.body;
+  const asset = await prisma.asset.update({
+    where: { id: req.params.id },
+    data: {
+      ...rest,
+      ...(purchaseDate && { purchaseDate: new Date(purchaseDate) }),
+      ...(warrantyExpiry && { warrantyExpiry: new Date(warrantyExpiry) }),
+      ...(cost !== undefined && { cost: Number(cost) }),
+    },
+  }).catch(() => null);
+  if (!asset) return res.status(404).json({ success: false, error: "Asset not found" });
+  res.json({ success: true, data: asset, message: "Asset updated" });
 });
 
 // DELETE /api/assets/:id
-router.delete("/:id", (req: Request, res: Response) => {
-  const idx = assets.findIndex(a => a.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ success: false, error: "Asset not found" });
-  assets.splice(idx, 1);
+router.delete("/:id", async (req: Request, res: Response) => {
+  await prisma.asset.delete({ where: { id: req.params.id } }).catch(() => null);
   res.json({ success: true, message: "Asset deleted" });
 });
 

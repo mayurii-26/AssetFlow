@@ -1,78 +1,78 @@
 import { Router, Request, Response } from "express";
-import { assets } from "../data/seed";
-import { MaintenanceTask } from "../types";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
-const tasks: MaintenanceTask[] = [
-  { id: "MNT-001", assetId: "AST-004", assetName: "HP LaserJet Pro", issue: "Paper jam & roller replacement", priority: "High", technician: "Suresh Nair", status: "In Progress", createdAt: "2024-07-01T10:00:00Z", updatedAt: "2024-07-05T10:00:00Z", department: "Finance", description: "Frequent paper jams, roller worn out" },
-  { id: "MNT-002", assetId: "AST-008", assetName: "Dell PowerEdge Server", issue: "Fan noise — possible bearing failure", priority: "Medium", technician: "—", status: "Pending", createdAt: "2024-07-06T10:00:00Z", updatedAt: "2024-07-06T10:00:00Z", department: "IT", description: "Loud fan noise from rack unit 4" },
-  { id: "MNT-003", assetId: "AST-003", assetName: "Conference Projector", issue: "Lamp replacement", priority: "Low", technician: "—", status: "Pending", createdAt: "2024-07-07T10:00:00Z", updatedAt: "2024-07-07T10:00:00Z", department: "Admin", description: "Lamp hours exceeded 3000h" },
-  { id: "MNT-004", assetId: "AST-013", assetName: "Cisco Network Switch", issue: "Port 12 not responding", priority: "High", technician: "Pranav Joshi", status: "Resolved", createdAt: "2024-06-20T10:00:00Z", updatedAt: "2024-06-25T10:00:00Z", department: "IT", description: "Physical port damage, replaced SFP module" },
-];
-
-// GET all tasks — optional status filter
-router.get("/", (req: Request, res: Response) => {
+// GET all tasks
+router.get("/", async (req: Request, res: Response) => {
   const { status } = req.query;
-  const result = status ? tasks.filter(t => t.status === status) : tasks;
-  res.json({ success: true, data: result, total: result.length });
+  const data = await prisma.maintenanceTask.findMany({
+    where: status ? { status: String(status).toUpperCase().replace(/ /g, "_") as "PENDING" | "APPROVED" | "TECHNICIAN_ASSIGNED" | "IN_PROGRESS" | "RESOLVED" } : undefined,
+    include: { asset: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ success: true, data, total: data.length });
 });
 
 // GET single task
-router.get("/:id", (req: Request, res: Response) => {
-  const task = tasks.find(t => t.id === req.params.id);
+router.get("/:id", async (req: Request, res: Response) => {
+  const task = await prisma.maintenanceTask.findUnique({
+    where: { id: req.params.id },
+    include: { asset: true },
+  });
   if (!task) return res.status(404).json({ success: false, error: "Task not found" });
   res.json({ success: true, data: task });
 });
 
 // POST create task
-router.post("/", (req: Request, res: Response) => {
-  const { assetId, issue, priority, department, description, technician } = req.body;
-  if (!assetId || !issue) return res.status(400).json({ success: false, error: "assetId and issue are required" });
+router.post("/", async (req: Request, res: Response) => {
+  const { assetId, issue, priority, department, description, technician, raisedById } = req.body;
+  if (!assetId || !issue || !raisedById)
+    return res.status(400).json({ success: false, error: "assetId, issue, and raisedById are required" });
 
-  const asset = assets.find(a => a.id === assetId);
+  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
   if (!asset) return res.status(404).json({ success: false, error: "Asset not found" });
 
-  const now = new Date().toISOString();
-  const task: MaintenanceTask = {
-    id: `MNT-${String(tasks.length + 1).padStart(3, "0")}`,
-    assetId, assetName: asset.name,
-    issue, priority: priority || "Medium",
-    technician: technician || "—",
-    status: "Pending",
-    createdAt: now, updatedAt: now,
-    department: department || asset.department,
-    description: description || "",
-  };
-  // Mark asset under maintenance
-  asset.status = "Under Maintenance";
-  asset.updatedAt = now;
-  tasks.push(task);
+  const [task] = await prisma.$transaction([
+    prisma.maintenanceTask.create({
+      data: {
+        assetId, raisedById,
+        issue, description: description || "",
+        priority: priority?.toUpperCase() || "MEDIUM",
+        technician: technician || null,
+        department: department || asset.departmentId,
+      },
+    }),
+    prisma.asset.update({ where: { id: assetId }, data: { status: "UNDER_MAINTENANCE" } }),
+  ]);
   res.status(201).json({ success: true, data: task, message: "Maintenance request raised" });
 });
 
-// PATCH update status / assign technician
-router.patch("/:id", (req: Request, res: Response) => {
-  const idx = tasks.findIndex(t => t.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ success: false, error: "Task not found" });
+// PATCH update status / move kanban column
+router.patch("/:id", async (req: Request, res: Response) => {
+  const { status, technician } = req.body;
 
-  const prev = tasks[idx];
-  tasks[idx] = { ...prev, ...req.body, updatedAt: new Date().toISOString() };
+  const existing = await prisma.maintenanceTask.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ success: false, error: "Task not found" });
 
-  // Auto-restore asset status to Available when Resolved
-  if (req.body.status === "Resolved" && prev.status !== "Resolved") {
-    const asset = assets.find(a => a.id === prev.assetId);
-    if (asset) { asset.status = "Available"; asset.updatedAt = new Date().toISOString(); }
+  const updateData: Record<string, unknown> = {};
+  if (status) updateData.status = String(status).toUpperCase().replace(/ /g, "_");
+  if (technician !== undefined) updateData.technician = technician;
+  if (status?.toUpperCase() === "RESOLVED") updateData.resolvedAt = new Date();
+
+  const task = await prisma.maintenanceTask.update({ where: { id: req.params.id }, data: updateData });
+
+  // Auto-restore asset to Available when Resolved
+  if (status?.toUpperCase() === "RESOLVED") {
+    await prisma.asset.update({ where: { id: existing.assetId }, data: { status: "AVAILABLE" } });
   }
 
-  res.json({ success: true, data: tasks[idx], message: "Maintenance task updated" });
+  res.json({ success: true, data: task, message: "Maintenance task updated" });
 });
 
 // DELETE task
-router.delete("/:id", (req: Request, res: Response) => {
-  const idx = tasks.findIndex(t => t.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ success: false, error: "Task not found" });
-  tasks.splice(idx, 1);
+router.delete("/:id", async (req: Request, res: Response) => {
+  await prisma.maintenanceTask.delete({ where: { id: req.params.id } }).catch(() => null);
   res.json({ success: true, message: "Task deleted" });
 });
 

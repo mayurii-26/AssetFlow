@@ -1,72 +1,86 @@
 import { Router, Request, Response } from "express";
-import { assets } from "../data/seed";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
-// GET dashboard summary / KPIs
-router.get("/summary", (_req: Request, res: Response) => {
-  const available = assets.filter(a => a.status === "Available").length;
-  const allocated = assets.filter(a => a.status === "Allocated").length;
-  const maintenance = assets.filter(a => a.status === "Under Maintenance").length;
-  const retired = assets.filter(a => a.status === "Retired").length;
-  const totalValue = assets.reduce((sum, a) => sum + a.cost, 0);
-
+// GET dashboard KPI summary
+router.get("/summary", async (_req, res: Response) => {
+  const [total, available, allocated, maintenance, retired, valueAgg] = await Promise.all([
+    prisma.asset.count(),
+    prisma.asset.count({ where: { status: "AVAILABLE" } }),
+    prisma.asset.count({ where: { status: "ALLOCATED" } }),
+    prisma.asset.count({ where: { status: "UNDER_MAINTENANCE" } }),
+    prisma.asset.count({ where: { status: "RETIRED" } }),
+    prisma.asset.aggregate({ _sum: { cost: true } }),
+    prisma.transferRequest.count({ where: { status: "PENDING" } }),
+    prisma.booking.count({ where: { status: "CONFIRMED", startTime: { gte: new Date() } } }),
+  ]);
   res.json({
     success: true,
     data: {
-      totalAssets: assets.length,
+      totalAssets: total,
       available, allocated, maintenance, retired,
-      totalValue,
-      pendingTransfers: 2,
-      activeBookings: 4,
-      upcomingReturns: 3,
+      totalValue: Number(valueAgg._sum.cost ?? 0),
+      pendingTransfers: await prisma.transferRequest.count({ where: { status: "PENDING" } }),
+      activeBookings: await prisma.booking.count({ where: { status: "CONFIRMED", startTime: { gte: new Date() } } }),
     },
   });
 });
 
-// GET asset utilization by department
-router.get("/utilization", (_req: Request, res: Response) => {
-  const deptMap: Record<string, { total: number; allocated: number }> = {};
-  assets.forEach(a => {
-    if (!deptMap[a.department]) deptMap[a.department] = { total: 0, allocated: 0 };
-    deptMap[a.department].total += 1;
-    if (a.status === "Allocated") deptMap[a.department].allocated += 1;
+// GET utilization by department
+router.get("/utilization", async (_req, res: Response) => {
+  const departments = await prisma.department.findMany({ include: { assets: true } });
+  type DeptWithAssets = (typeof departments)[number];
+  type AssetItem = DeptWithAssets["assets"][number];
+  const data = departments.map((d: DeptWithAssets) => ({
+    department: d.name,
+    total: d.assets.length,
+    allocated: d.assets.filter((a: AssetItem) => a.status === "ALLOCATED").length,
+    utilization: d.assets.length > 0 ? Math.round((d.assets.filter((a: AssetItem) => a.status === "ALLOCATED").length / d.assets.length) * 100) : 0,
+  }));
+  res.json({ success: true, data });
+});
+
+// GET status distribution
+router.get("/status-distribution", async (_req, res: Response) => {
+  const statuses = ["AVAILABLE", "ALLOCATED", "UNDER_MAINTENANCE", "RETIRED"] as const;
+  const data = await Promise.all(
+    statuses.map(async s => ({ status: s, count: await prisma.asset.count({ where: { status: s } }) }))
+  );
+  res.json({ success: true, data });
+});
+
+// GET assets by category
+router.get("/by-category", async (_req, res: Response) => {
+  const categories = await prisma.category.findMany({ include: { assets: true } });
+  type CatWithAssets = (typeof categories)[number];
+  const data = categories.map((c: CatWithAssets) => ({ category: c.name, count: c.assets.length }));
+  res.json({ success: true, data });
+});
+
+// GET assets near retirement (warranty expiring within 90 days)
+router.get("/near-retirement", async (_req, res: Response) => {
+  const ninetyDaysFromNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+  const data = await prisma.asset.findMany({
+    where: { warrantyExpiry: { lte: ninetyDaysFromNow, not: null } },
+    include: { category: true, department: true },
+    orderBy: { warrantyExpiry: "asc" },
   });
-  const data = Object.entries(deptMap).map(([dept, v]) => ({
-    department: dept,
-    total: v.total,
-    allocated: v.allocated,
-    utilization: Math.round((v.allocated / v.total) * 100),
-  }));
-  res.json({ success: true, data });
+  res.json({ success: true, data, total: data.length });
 });
 
-// GET status distribution for pie chart
-router.get("/status-distribution", (_req: Request, res: Response) => {
-  const statuses = ["Available", "Allocated", "Under Maintenance", "Retired"];
-  const data = statuses.map(s => ({
-    status: s,
-    count: assets.filter(a => a.status === s).length,
-  }));
-  res.json({ success: true, data });
-});
-
-// GET category breakdown
-router.get("/by-category", (_req: Request, res: Response) => {
-  const catMap: Record<string, number> = {};
-  assets.forEach(a => { catMap[a.category] = (catMap[a.category] || 0) + 1; });
-  const data = Object.entries(catMap).map(([category, count]) => ({ category, count }));
-  res.json({ success: true, data });
-});
-
-// GET assets near retirement (warranty expired or expiring within 90 days)
-router.get("/near-retirement", (_req: Request, res: Response) => {
-  const now = new Date();
-  const ninetyDays = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-  const data = assets.filter(a => {
-    if (a.warrantyExpiry === "—") return false;
-    const exp = new Date(a.warrantyExpiry);
-    return exp <= ninetyDays;
+// GET activity logs
+router.get("/activity", async (req: Request, res: Response) => {
+  const { module, severity, userId } = req.query;
+  const data = await prisma.activityLog.findMany({
+    where: {
+      ...(module && { module: String(module) }),
+      ...(severity && { severity: String(severity).toUpperCase() as "INFO" | "WARNING" | "ERROR" }),
+      ...(userId && { userId: String(userId) }),
+    },
+    include: { user: { select: { name: true, email: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
   });
   res.json({ success: true, data, total: data.length });
 });

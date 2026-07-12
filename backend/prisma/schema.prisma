@@ -1,0 +1,373 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(EMPLOYEE)
+  organization String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  allocations       Allocation[]
+  transfersFrom     TransferRequest[] @relation("TransferFrom")
+  transfersTo       TransferRequest[] @relation("TransferTo")
+  bookings          Booking[]
+  maintenanceTasks  MaintenanceTask[]
+  auditItems        AuditItem[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+// ─────────────────────────────────────────────
+// ORGANISATION
+// ─────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  head      String
+  parent    String?
+  status    Status   @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+  assets    Asset[]
+
+  @@map("departments")
+}
+
+model Employee {
+  id           String     @id @default(cuid())
+  employeeCode String     @unique
+  name         String
+  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String
+  designation  String
+  email        String     @unique
+  status       Status     @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@map("employees")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  prefix      String   @unique
+  description String?
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets Asset[]
+
+  @@map("categories")
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+// ─────────────────────────────────────────────
+// ASSETS
+// ─────────────────────────────────────────────
+
+model Asset {
+  id             String      @id
+  name           String
+  category       Category    @relation(fields: [categoryId], references: [id])
+  categoryId     String
+  department     Department  @relation(fields: [departmentId], references: [id])
+  departmentId   String
+  status         AssetStatus @default(AVAILABLE)
+  currentHolder  String      @default("—")
+  location       String
+  purchaseDate   DateTime
+  vendor         String
+  cost           Decimal     @db.Decimal(12, 2)
+  serialNumber   String      @unique
+  warrantyExpiry DateTime?
+  description    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  allocations      Allocation[]
+  transferRequests TransferRequest[]
+  maintenanceTasks MaintenanceTask[]
+  auditItems       AuditItem[]
+
+  @@map("assets")
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ALLOCATED
+  UNDER_MAINTENANCE
+  RETIRED
+  PENDING_TRANSFER
+}
+
+// ─────────────────────────────────────────────
+// ALLOCATION & TRANSFER
+// ─────────────────────────────────────────────
+
+model Allocation {
+  id           String           @id @default(cuid())
+  asset        Asset            @relation(fields: [assetId], references: [id])
+  assetId      String
+  allocatedBy  User             @relation(fields: [allocatedById], references: [id])
+  allocatedById String
+  toEmployee   String
+  department   String
+  reason       String?
+  notes        String?
+  status       AllocationStatus @default(ACTIVE)
+  allocatedAt  DateTime         @default(now())
+  returnedAt   DateTime?
+
+  @@map("allocations")
+}
+
+enum AllocationStatus {
+  ACTIVE
+  RETURNED
+}
+
+model TransferRequest {
+  id             String         @id @default(cuid())
+  asset          Asset          @relation(fields: [assetId], references: [id])
+  assetId        String
+  requestedBy    User           @relation("TransferFrom", fields: [requestedById], references: [id])
+  requestedById  String
+  approvedBy     User?          @relation("TransferTo", fields: [approvedById], references: [id])
+  approvedById   String?
+  fromEmployee   String
+  toEmployee     String
+  department     String
+  reason         String
+  notes          String?
+  priority       Priority       @default(MEDIUM)
+  status         RequestStatus  @default(PENDING)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("transfer_requests")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─────────────────────────────────────────────
+// BOOKING
+// ─────────────────────────────────────────────
+
+model Resource {
+  id       String         @id @default(cuid())
+  name     String         @unique
+  type     String
+  capacity Int
+  location String
+  status   ResourceStatus @default(AVAILABLE)
+
+  bookings Booking[]
+
+  @@map("resources")
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  BOOKED
+  UNDER_MAINTENANCE
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  resource     Resource      @relation(fields: [resourceId], references: [id])
+  resourceId   String
+  bookedBy     User          @relation(fields: [bookedById], references: [id])
+  bookedById   String
+  department   String
+  purpose      String
+  startTime    DateTime
+  endTime      DateTime
+  attendees    Int           @default(1)
+  notes        String?
+  status       BookingStatus @default(CONFIRMED)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("bookings")
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────
+// MAINTENANCE
+// ─────────────────────────────────────────────
+
+model MaintenanceTask {
+  id          String          @id @default(cuid())
+  asset       Asset           @relation(fields: [assetId], references: [id])
+  assetId     String
+  raisedBy    User            @relation(fields: [raisedById], references: [id])
+  raisedById  String
+  issue       String
+  description String?
+  priority    Priority        @default(MEDIUM)
+  technician  String?
+  status      MaintenanceStatus @default(PENDING)
+  department  String
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("maintenance_tasks")
+}
+
+enum MaintenanceStatus {
+  PENDING
+  APPROVED
+  TECHNICIAN_ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+}
+
+// ─────────────────────────────────────────────
+// AUDIT
+// ─────────────────────────────────────────────
+
+model AuditCycle {
+  id         String      @id @default(cuid())
+  name       String
+  department String
+  auditors   String
+  startDate  DateTime
+  endDate    DateTime
+  status     AuditStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now())
+
+  items AuditItem[]
+
+  @@map("audit_cycles")
+}
+
+enum AuditStatus {
+  ACTIVE
+  CLOSED
+}
+
+model AuditItem {
+  id               String          @id @default(cuid())
+  cycle            AuditCycle      @relation(fields: [cycleId], references: [id])
+  cycleId          String
+  asset            Asset           @relation(fields: [assetId], references: [id])
+  assetId          String
+  verifiedBy       User?           @relation(fields: [verifiedById], references: [id])
+  verifiedById     String?
+  expectedLocation String
+  actualLocation   String?
+  condition        String?
+  status           AuditItemStatus @default(PENDING)
+  verifiedAt       DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@map("audit_items")
+}
+
+enum AuditItemStatus {
+  PENDING
+  VERIFIED
+  MISSING
+  DAMAGED
+  DISCREPANCY
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS & LOGS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid())
+  user        User             @relation(fields: [userId], references: [id])
+  userId      String
+  type        NotificationType
+  title       String
+  description String
+  priority    NotifPriority    @default(MEDIUM)
+  read        Boolean          @default(false)
+  module      String
+  createdAt   DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  ALERT
+  APPROVAL
+  BOOKING
+  MAINTENANCE
+  AUDIT
+}
+
+enum NotifPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  action      String
+  description String
+  module      String
+  severity    LogSeverity @default(INFO)
+  createdAt   DateTime @default(now())
+
+  @@map("activity_logs")
+}
+
+enum LogSeverity {
+  INFO
+  WARNING
+  ERROR
+}

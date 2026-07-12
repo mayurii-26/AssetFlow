@@ -1,91 +1,74 @@
 import { Router, Request, Response } from "express";
-import { AuditItem } from "../types";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
-interface AuditCycle {
-  id: string;
-  name: string;
-  department: string;
-  auditors: string[];
-  startDate: string;
-  endDate: string;
-  status: "Active" | "Closed";
-  items: AuditItem[];
-}
-
-const auditCycles: AuditCycle[] = [
-  {
-    id: "AUD-2024-Q3",
-    name: "Q3 2024 Asset Audit",
-    department: "All Departments",
-    auditors: ["Pranav Joshi", "Ramesh Iyer"],
-    startDate: "2024-07-08",
-    endDate: "2024-07-15",
-    status: "Active",
-    items: [
-      { id: "AUD-001", assetId: "AST-001", assetName: "MacBook Pro 16\"", expectedLocation: "Floor 3 - Bay 12", actualLocation: "Floor 3 - Bay 12", condition: "Good", status: "Verified", verifiedBy: "Pranav Joshi", verifiedAt: "2024-07-10" },
-      { id: "AUD-002", assetId: "AST-002", assetName: "Dell Monitor 27\"", expectedLocation: "IT Storeroom A", actualLocation: "IT Storeroom A", condition: "Good", status: "Verified", verifiedBy: "Pranav Joshi", verifiedAt: "2024-07-10" },
-      { id: "AUD-003", assetId: "AST-003", assetName: "Conference Projector", expectedLocation: "Conference Room B", actualLocation: "Conference Room A", condition: "Good", status: "Discrepancy", verifiedBy: "Ramesh Iyer", verifiedAt: "2024-07-10" },
-      { id: "AUD-004", assetId: "AST-006", assetName: "iPhone 15 Pro", expectedLocation: "Sales Floor", actualLocation: "—", condition: "—", status: "Missing", verifiedBy: "—", verifiedAt: "—" },
-    ],
-  },
-];
-
-// GET all cycles
-router.get("/", (_req: Request, res: Response) => {
-  const summary = auditCycles.map(c => ({
+// GET all cycles with summary
+router.get("/", async (_req, res: Response) => {
+  const cycles = await prisma.auditCycle.findMany({
+    include: { items: true },
+    orderBy: { createdAt: "desc" },
+  });
+  type CycleWithItems = (typeof cycles)[number];
+  type AuditItemType = CycleWithItems["items"][number];
+  const data = cycles.map((c: CycleWithItems) => ({
     ...c,
     totalItems: c.items.length,
-    verified: c.items.filter(i => i.status === "Verified").length,
-    discrepancies: c.items.filter(i => i.status !== "Verified").length,
+    verified: c.items.filter((i: AuditItemType) => i.status === "VERIFIED").length,
+    discrepancies: c.items.filter((i: AuditItemType) => i.status !== "VERIFIED" && i.status !== "PENDING").length,
   }));
-  res.json({ success: true, data: summary });
+  res.json({ success: true, data });
 });
 
-// GET single cycle with items
-router.get("/:id", (req: Request, res: Response) => {
-  const cycle = auditCycles.find(c => c.id === req.params.id);
+// GET single cycle with all items
+router.get("/:id", async (req: Request, res: Response) => {
+  const cycle = await prisma.auditCycle.findUnique({
+    where: { id: req.params.id },
+    include: { items: { include: { asset: true } } },
+  });
   if (!cycle) return res.status(404).json({ success: false, error: "Audit cycle not found" });
   res.json({ success: true, data: cycle });
 });
 
-// PATCH update audit item (verify / mark missing / damaged)
-router.patch("/:cycleId/items/:itemId", (req: Request, res: Response) => {
-  const cycle = auditCycles.find(c => c.id === req.params.cycleId);
-  if (!cycle) return res.status(404).json({ success: false, error: "Audit cycle not found" });
+// POST create new audit cycle
+router.post("/", async (req: Request, res: Response) => {
+  const { name, department, auditors, startDate, endDate } = req.body;
+  if (!name || !startDate || !endDate)
+    return res.status(400).json({ success: false, error: "name, startDate, and endDate are required" });
 
-  const idx = cycle.items.findIndex(i => i.id === req.params.itemId);
-  if (idx === -1) return res.status(404).json({ success: false, error: "Audit item not found" });
+  const cycle = await prisma.auditCycle.create({
+    data: {
+      name,
+      department: department || "All Departments",
+      auditors: Array.isArray(auditors) ? auditors.join(", ") : (auditors || ""),
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+    },
+  });
+  res.status(201).json({ success: true, data: cycle, message: "Audit cycle created" });
+});
 
-  cycle.items[idx] = { ...cycle.items[idx], ...req.body };
-  res.json({ success: true, data: cycle.items[idx], message: "Audit item updated" });
+// PATCH update an audit item (verify / mark missing / damaged)
+router.patch("/:cycleId/items/:itemId", async (req: Request, res: Response) => {
+  const item = await prisma.auditItem.update({
+    where: { id: req.params.itemId },
+    data: {
+      ...req.body,
+      verifiedAt: req.body.status && req.body.status !== "PENDING" ? new Date() : undefined,
+    },
+  }).catch(() => null);
+  if (!item) return res.status(404).json({ success: false, error: "Audit item not found" });
+  res.json({ success: true, data: item, message: "Audit item updated" });
 });
 
 // PATCH close audit cycle
-router.patch("/:id/close", (req: Request, res: Response) => {
-  const cycle = auditCycles.find(c => c.id === req.params.id);
+router.patch("/:id/close", async (req: Request, res: Response) => {
+  const cycle = await prisma.auditCycle.update({
+    where: { id: req.params.id },
+    data: { status: "CLOSED" },
+  }).catch(() => null);
   if (!cycle) return res.status(404).json({ success: false, error: "Audit cycle not found" });
-  cycle.status = "Closed";
   res.json({ success: true, data: cycle, message: "Audit cycle closed" });
-});
-
-// POST new audit cycle
-router.post("/", (req: Request, res: Response) => {
-  const { name, department, auditors, startDate, endDate } = req.body;
-  if (!name || !startDate || !endDate) {
-    return res.status(400).json({ success: false, error: "name, startDate, and endDate are required" });
-  }
-  const cycle: AuditCycle = {
-    id: `AUD-${new Date().getFullYear()}-${String(auditCycles.length + 1).padStart(2, "0")}`,
-    name, department: department || "All Departments",
-    auditors: auditors || [],
-    startDate, endDate,
-    status: "Active",
-    items: [],
-  };
-  auditCycles.push(cycle);
-  res.status(201).json({ success: true, data: cycle, message: "Audit cycle created" });
 });
 
 export default router;
