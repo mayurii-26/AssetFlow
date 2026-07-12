@@ -2,31 +2,48 @@
 import { Bell, Search, ChevronRight, User, Settings, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/context/AuthContext";
+import { notificationsApi } from "@/lib/api";
 import { toast } from "sonner";
 
 const breadcrumbMap: Record<string, string> = {
-  dashboard: "Dashboard",
+  dashboard:    "Dashboard",
   organization: "Organization Setup",
-  assets: "Asset Directory",
-  allocation: "Allocation & Transfer",
-  booking: "Resource Booking",
-  maintenance: "Maintenance",
-  audit: "Audit",
-  reports: "Reports & Analytics",
-  notifications: "Notifications",
+  assets:       "Asset Directory",
+  allocation:   "Allocation & Transfer",
+  booking:      "Resource Booking",
+  maintenance:  "Maintenance",
+  audit:        "Audit",
+  reports:      "Reports & Analytics",
+  notifications:"Notifications",
 };
 
 export default function TopNav() {
   const pathname = usePathname();
-  const router = useRouter();
+  const router   = useRouter();
   const { user, logout } = useAuth();
   const segments = pathname.split("/").filter(Boolean);
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll unread count every 30s
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await notificationsApi.list({ read: "false" });
+        setUnreadCount(res.unread ?? 0);
+      } catch { /* ignore */ }
+    };
+    fetch();
+    const interval = setInterval(fetch, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -38,7 +55,9 @@ export default function TopNav() {
     <header className="h-16 bg-[#131313]/80 backdrop-blur-xl border-b border-white/8 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
       {/* Breadcrumbs */}
       <div className="flex items-center gap-1.5 text-sm">
-        <span className="text-[#8e9192]">AssetFlow</span>
+        <span className="text-[#8e9192] font-medium">
+          {user?.organization ?? "AssetFlow"}
+        </span>
         {segments.map((seg, i) => (
           <span key={seg} className="flex items-center gap-1.5">
             <ChevronRight size={14} className="text-[#444748]" />
@@ -61,15 +80,17 @@ export default function TopNav() {
           />
         </div>
 
-        {/* Org name from auth */}
+        {/* Live org badge */}
         {user?.organization && (
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/8 rounded-full">
             <div className="w-2 h-2 rounded-full bg-[#00f0ff] animate-pulse" />
-            <span className="text-[12px] text-[#c4c7c8] font-medium tracking-wide">{user.organization}</span>
+            <span className="text-[12px] text-[#c4c7c8] font-medium tracking-wide">
+              {user.organization}
+            </span>
           </div>
         )}
 
-        {/* Notifications bell */}
+        {/* Notifications bell — live unread count */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -77,10 +98,19 @@ export default function TopNav() {
           className="relative w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/8 text-[#8e9192] hover:text-[#e5e2e1] transition-colors"
         >
           <Bell size={15} />
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#00f0ff] rounded-full text-[9px] text-black font-bold flex items-center justify-center">3</span>
+          {unreadCount > 0 && (
+            <motion.span
+              key={unreadCount}
+              initial={{ scale: 0.5 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-[#00f0ff] rounded-full text-[9px] text-black font-bold flex items-center justify-center"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </motion.span>
+          )}
         </motion.button>
 
-        {/* User menu — real user data */}
+        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 focus:outline-none hover:opacity-90 transition-opacity">
             <Avatar className="w-8 h-8 border border-white/15">
@@ -93,10 +123,18 @@ export default function TopNav() {
               <p className="text-[10px] text-[#8e9192] capitalize">{user?.role ?? "—"}</p>
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-[#1c1b1b] border-white/10 text-[#e5e2e1]">
-            <div className="px-3 py-2 border-b border-white/8 mb-1">
-              <p className="text-[12px] font-medium text-[#e5e2e1]">{user?.name}</p>
+          <DropdownMenuContent align="end" className="w-52 bg-[#1c1b1b] border-white/10 text-[#e5e2e1]">
+            {/* User + org summary */}
+            <div className="px-3 py-2.5 border-b border-white/8 mb-1">
+              <p className="text-[12px] font-semibold text-[#e5e2e1]">{user?.name}</p>
               <p className="text-[11px] text-[#8e9192]">{user?.email}</p>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00f0ff]" />
+                <p className="text-[10px] text-[#00f0ff] font-medium tracking-wide">{user?.organization}</p>
+              </div>
+              <span className="inline-block mt-1 text-[9px] px-1.5 py-0.5 rounded bg-white/8 text-[#8e9192] capitalize">
+                {user?.role}
+              </span>
             </div>
             <DropdownMenuItem className="gap-2 text-[13px] focus:bg-white/8 cursor-pointer">
               <User size={14} /> Profile

@@ -7,6 +7,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -51,9 +52,10 @@ async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return data;
 }
 
-const emptyForm = { name: "", department: "All Departments", startDate: "", endDate: "" };
+const emptyForm = { name: "", department: "All Departments", auditor: "", startDate: "", endDate: "" };
 
 export default function AuditPage() {
+  const { user } = useAuth();
   const [cycles, setCycles] = useState<AuditCycle[]>([]);
   const [activeCycle, setActiveCycle] = useState<AuditCycle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,16 @@ export default function AuditPage() {
     setSubmitting(true);
     setFormError("");
     try {
-      await api("/api/audit", { method: "POST", body: JSON.stringify(form) });
+      await api("/api/audit", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name,
+          department: form.department,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          auditors: form.auditor ? [form.auditor] : [],
+        }),
+      });
       setNewOpen(false);
       setForm(emptyForm);
       loadCycles();
@@ -118,7 +129,7 @@ export default function AuditPage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <PageHeader title="Audit" description="Track asset verification and discrepancy reports" icon={ClipboardCheck}>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={() => { setNewOpen(true); setForm(emptyForm); setFormError(""); }}
+          onClick={() => { setNewOpen(true); setForm({ ...emptyForm, auditor: user?.name ?? "" }); setFormError(""); }}
           className="flex items-center gap-2 px-4 py-2 bg-[#00f0ff] text-black rounded-full text-[13px] font-semibold">
           <Plus size={14} /> New Audit Cycle
         </motion.button>
@@ -153,6 +164,18 @@ export default function AuditPage() {
                 </div>
               ))}
             </div>
+            {activeCycle.auditors?.length > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <p className="text-[11px] font-semibold text-[#8e9192] uppercase tracking-wider">Auditors:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeCycle.auditors.map(a => (
+                    <span key={a} className="px-2 py-0.5 bg-[#00f0ff]/10 border border-[#00f0ff]/20 rounded-full text-[11px] text-[#00f0ff] font-medium">
+                      {a}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-4 grid grid-cols-3 gap-3">
               {[{ label: "Total Items", value: items.length, color: "text-[#e5e2e1]" },
                 { label: "Verified", value: items.filter(a => a.status === "Verified").length, color: "text-green-400" },
@@ -244,6 +267,14 @@ export default function AuditPage() {
               <Label className="text-[#8e9192] text-[12px]">Department</Label>
               <input value={form.department} onChange={sf("department")} placeholder="All Departments"
                 className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[13px] text-[#e5e2e1] focus:outline-none focus:border-[#00f0ff]/40" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[#8e9192] text-[12px]">
+                Auditor
+                <span className="ml-2 text-[10px] text-[#00f0ff]/70 font-normal">pre-filled from your account</span>
+              </Label>
+              <input value={form.auditor} onChange={sf("auditor")} placeholder="Auditor name…"
+                className="w-full px-3 py-2 bg-[#00f0ff]/5 border border-[#00f0ff]/20 rounded-xl text-[13px] text-[#e5e2e1] placeholder-[#8e9192] focus:outline-none focus:border-[#00f0ff]/40" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">

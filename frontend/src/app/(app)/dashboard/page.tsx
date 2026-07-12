@@ -9,6 +9,7 @@ import {
 import KpiCard from "@/components/ui/KpiCard";
 import PageHeader from "@/components/ui/PageHeader";
 import { reportsApi, activityApi, notificationsApi, type DashboardSummary, type ActivityLog, type Notification } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
 const severityColor: Record<string, string> = {
@@ -28,6 +29,14 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<Notification[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +81,29 @@ export default function DashboardPage() {
         description="Overview of your asset ecosystem"
         icon={Zap}
       />
+
+      {/* Personalized greeting */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
+        <div>
+          <h2 className="text-[22px] font-bold text-[#e5e2e1]">
+            {greeting()}, {user?.name?.split(" ")[0]} 👋
+          </h2>
+          <p className="text-[13px] text-[#8e9192] mt-0.5">
+            Here's what's happening at <span className="text-[#00f0ff] font-medium">{user?.organization}</span> today.
+          </p>
+        </div>
+        {summary && (
+          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/3 border border-white/8 rounded-2xl">
+            <span className="text-[12px] text-[#8e9192]">Total Asset Value</span>
+            <span className="text-[15px] font-bold text-[#00f0ff]">
+              ₹{summary.totalValue.toLocaleString("en-IN")}
+            </span>
+          </div>
+        )}
+      </motion.div>
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
