@@ -2,26 +2,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Zap, Mail, Lock, User, Building2, AlertCircle, ArrowRight, CheckCircle2 } from "lucide-react";
+import {
+  Eye, EyeOff, Zap, Mail, Lock, User,
+  Building2, AlertCircle, ArrowRight, CheckCircle2
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
 const passwordRules = [
   { label: "At least 8 characters", test: (p: string) => p.length >= 8 },
-  { label: "Contains a number", test: (p: string) => /\d/.test(p) },
+  { label: "Contains a number",     test: (p: string) => /\d/.test(p) },
 ];
 
 export default function SignupPage() {
   const router = useRouter();
   const { signup } = useAuth();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName]               = useState("");
+  const [email, setEmail]             = useState("");
   const [organization, setOrganization] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [password, setPassword]       = useState("");
+  const [showPass, setShowPass]       = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +49,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-[#131313] flex items-center justify-center px-4 py-12 relative overflow-hidden">
-      {/* Background glow */}
+      {/* Background glows */}
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#00f0ff]/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-[#00f0ff]/3 rounded-full blur-3xl pointer-events-none" />
 
@@ -67,7 +70,18 @@ export default function SignupPage() {
         {/* Card */}
         <div className="glass-panel rounded-3xl p-8 border border-white/10">
           <h1 className="text-2xl font-bold text-[#e5e2e1] mb-1">Create your account</h1>
-          <p className="text-[13px] text-[#8e9192] mb-6">Set up your organization's asset workspace</p>
+          <p className="text-[13px] text-[#8e9192] mb-6">
+            Join your organization&apos;s AssetFlow workspace
+          </p>
+
+          {/* Info chip — no role selector needed */}
+          <div className="flex items-start gap-2 p-3 bg-[#00f0ff]/8 border border-[#00f0ff]/20 rounded-xl mb-5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#00f0ff] mt-1.5 shrink-0" />
+            <p className="text-[12px] text-[#c4c7c8] leading-relaxed">
+              You&apos;ll join as an <span className="text-[#00f0ff] font-semibold">Employee</span>.
+              Your admin can promote you to Department Head or Asset Manager from the Employee Directory.
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name */}
@@ -75,8 +89,11 @@ export default function SignupPage() {
               <label className="text-[12px] font-medium text-[#8e9192]">Full Name</label>
               <div className="relative">
                 <User size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Aditya Kumar"
-                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all" />
+                <input
+                  type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="Aditya Kumar" autoComplete="name"
+                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all"
+                />
               </div>
             </div>
 
@@ -85,8 +102,11 @@ export default function SignupPage() {
               <label className="text-[12px] font-medium text-[#8e9192]">Organization Name</label>
               <div className="relative">
                 <Building2 size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
-                <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} placeholder="Nexus Corp"
-                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all" />
+                <input
+                  type="text" value={organization} onChange={e => setOrganization(e.target.value)}
+                  placeholder="Nexus Corp" autoComplete="organization"
+                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all"
+                />
               </div>
             </div>
 
@@ -95,8 +115,11 @@ export default function SignupPage() {
               <label className="text-[12px] font-medium text-[#8e9192]">Work Email</label>
               <div className="relative">
                 <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com"
-                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all" />
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="you@company.com" autoComplete="email"
+                  className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all"
+                />
               </div>
             </div>
 
@@ -105,18 +128,28 @@ export default function SignupPage() {
               <label className="text-[12px] font-medium text-[#8e9192]">Password</label>
               <div className="relative">
                 <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
-                <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all" />
-                <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#e5e2e1] transition-colors">
+                <input
+                  type={showPass ? "text" : "password"} value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••" autoComplete="new-password"
+                  className="w-full pl-9 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[14px] text-[#e5e2e1] placeholder-[#444748] focus:outline-none focus:border-[#00f0ff]/50 focus:bg-white/8 transition-all"
+                />
+                <button
+                  type="button" onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8e9192] hover:text-[#e5e2e1] transition-colors"
+                >
                   {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
+
               {/* Password strength hints */}
               {password.length > 0 && (
-                <div className="flex gap-3 pt-1">
+                <div className="flex gap-4 pt-1">
                   {passwordRules.map(rule => (
-                    <div key={rule.label} className={`flex items-center gap-1 text-[11px] transition-colors ${rule.test(password) ? "text-green-400" : "text-[#444748]"}`}>
+                    <div
+                      key={rule.label}
+                      className={`flex items-center gap-1 text-[11px] transition-colors ${rule.test(password) ? "text-green-400" : "text-[#444748]"}`}
+                    >
                       <CheckCircle2 size={11} />
                       {rule.label}
                     </div>
@@ -127,29 +160,34 @@ export default function SignupPage() {
 
             {/* Error */}
             {error && (
-              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/25 rounded-xl">
+              <motion.div
+                initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/25 rounded-xl"
+              >
                 <AlertCircle size={14} className="text-red-400 shrink-0" />
                 <p className="text-[12px] text-red-400">{error}</p>
               </motion.div>
             )}
 
             {/* Submit */}
-            <motion.button type="submit" disabled={loading}
+            <motion.button
+              type="submit" disabled={loading}
               whileHover={{ scale: loading ? 1 : 1.01 }}
               whileTap={{ scale: loading ? 1 : 0.98 }}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-[#00f0ff] text-black font-semibold rounded-xl text-[14px] hover:bg-[#00f0ff]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-2">
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              ) : (
-                <><span>Create Account</span><ArrowRight size={15} /></>
-              )}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-[#00f0ff] text-black font-semibold rounded-xl text-[14px] hover:bg-[#00f0ff]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-2"
+            >
+              {loading
+                ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                : <><span>Create Account</span><ArrowRight size={15} /></>
+              }
             </motion.button>
           </form>
 
           <p className="text-center text-[13px] text-[#8e9192] mt-6">
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-[#00f0ff] hover:text-[#00f0ff]/80 font-medium transition-colors">Sign in</Link>
+            <Link href="/auth/login" className="text-[#00f0ff] hover:text-[#00f0ff]/80 font-medium transition-colors">
+              Sign in
+            </Link>
           </p>
         </div>
 

@@ -67,7 +67,12 @@ function LoginForm() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[12px] font-medium text-[#8e9192]">Password</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] font-medium text-[#8e9192]">Password</label>
+            <Link href="/auth/forgot-password" className="text-[12px] text-[#00f0ff]/70 hover:text-[#00f0ff] transition-colors">
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8e9192]" />
             <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"

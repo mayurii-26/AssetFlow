@@ -13,14 +13,16 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(EMPLOYEE)
-  organization String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  passwordHash       String
+  role               Role     @default(EMPLOYEE)
+  organization       String
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   allocations       Allocation[]
   transfersFrom     TransferRequest[] @relation("TransferFrom")
@@ -36,6 +38,8 @@ model User {
 
 enum Role {
   ADMIN
+  DEPARTMENT_HEAD
+  ASSET_MANAGER
   EMPLOYEE
 }
 

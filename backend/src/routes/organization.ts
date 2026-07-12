@@ -90,4 +90,31 @@ router.delete("/categories/:id", async (req: Request, res: Response) => {
   res.json({ success: true, message: "Category deleted" });
 });
 
+// ── USER ROLE MANAGEMENT (Admin only) ────────
+// PATCH /api/organization/users/:id/role  — promote/demote a user
+router.patch("/users/:id/role", async (req: Request, res: Response) => {
+  const { role } = req.body;
+  const validRoles = ["ADMIN", "DEPARTMENT_HEAD", "ASSET_MANAGER", "EMPLOYEE"];
+  if (!role || !validRoles.includes(role.toUpperCase()))
+    return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(", ")}` });
+
+  const user = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { role: role.toUpperCase() as "ADMIN" | "DEPARTMENT_HEAD" | "ASSET_MANAGER" | "EMPLOYEE" },
+    select: { id: true, name: true, email: true, role: true, organization: true },
+  }).catch(() => null);
+
+  if (!user) return res.status(404).json({ success: false, error: "User not found" });
+  res.json({ success: true, data: user, message: `User role updated to ${role}` });
+});
+
+// GET /api/organization/users — list all users (for admin employee directory)
+router.get("/users", async (_req, res: Response) => {
+  const data = await prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true, organization: true, createdAt: true },
+    orderBy: { name: "asc" },
+  });
+  res.json({ success: true, data, total: data.length });
+});
+
 export default router;
