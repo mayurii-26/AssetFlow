@@ -45,21 +45,21 @@ router.post("/signup", async (req: Request, res: Response) => {
   if (exists)
     return res.status(409).json({ success: false, error: "An account with this email already exists." });
 
-  // Always assign EMPLOYEE — role cannot be set via signup
+  // Always assign EMPLOYEE — first user in org becomes ADMIN
+  const userCount   = await prisma.user.count();
   const passwordHash = await bcrypt.hash(password, 10);
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       passwordHash,
-      role: "EMPLOYEE",
+      role: userCount === 0 ? "ADMIN" : "EMPLOYEE",
       organization: organization.trim(),
     },
   });
 
   // Auto-create an Employee record so admin can see this user in the directory
-  // Find or create a default department for self-registered users
   let defaultDept = await prisma.department.findFirst({ where: { name: "General" } });
   if (!defaultDept) {
     defaultDept = await prisma.department.create({
@@ -67,7 +67,7 @@ router.post("/signup", async (req: Request, res: Response) => {
     });
   }
 
-  const empCount = await prisma.employee.count();
+  const empCount   = await prisma.employee.count();
   const emailExists = await prisma.employee.findUnique({ where: { email: email.toLowerCase().trim() } });
   if (!emailExists) {
     await prisma.employee.create({
@@ -76,13 +76,13 @@ router.post("/signup", async (req: Request, res: Response) => {
         name: name.trim(),
         email: email.toLowerCase().trim(),
         departmentId: defaultDept.id,
-        designation: count === 0 ? "Administrator" : "Employee",
+        designation: userCount === 0 ? "Administrator" : "Employee",
       },
     });
   }
 
-  // Do NOT issue a token — user must log in explicitly after signup
-  res.status(201).json({ success: true, message: "Account created successfully. Please log in." });
+  const token = signToken(user);
+  res.status(201).json({ success: true, token, user: publicUser(user), message: "Account created." });
 });
 
 // ── POST /api/auth/login ───────────────────────────────
