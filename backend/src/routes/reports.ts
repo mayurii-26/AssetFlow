@@ -5,7 +5,7 @@ const router = Router();
 
 // GET dashboard KPI summary
 router.get("/summary", async (_req, res: Response) => {
-  const [total, available, allocated, maintenance, retired, valueAgg] = await Promise.all([
+  const [total, available, allocated, maintenance, retired, valueAgg, pendingTransfers, activeBookings] = await Promise.all([
     prisma.asset.count(),
     prisma.asset.count({ where: { status: "AVAILABLE" } }),
     prisma.asset.count({ where: { status: "ALLOCATED" } }),
@@ -21,8 +21,8 @@ router.get("/summary", async (_req, res: Response) => {
       totalAssets: total,
       available, allocated, maintenance, retired,
       totalValue: Number(valueAgg._sum.cost ?? 0),
-      pendingTransfers: await prisma.transferRequest.count({ where: { status: "PENDING" } }),
-      activeBookings: await prisma.booking.count({ where: { status: "CONFIRMED", startTime: { gte: new Date() } } }),
+      pendingTransfers,
+      activeBookings,
     },
   });
 });

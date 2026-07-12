@@ -166,16 +166,17 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
-      {/* Collapse toggle */}
-      <div className="px-2 py-4 border-t border-border">
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[var(--input)] transition-all duration-200"
-        >
-          {collapsed
-            ? <ChevronRight size={16} />
-            : <><ChevronLeft size={16} /><span className="text-[12px]">Collapse</span></>}
-        </button>
+        {/* Collapse toggle */}
+        <div className="px-0 pt-1">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[var(--input)] transition-all duration-200"
+          >
+            {collapsed
+              ? <ChevronRight size={16} />
+              : <><ChevronLeft size={16} /><span className="text-[12px]">Collapse</span></>}
+          </button>
+        </div>
       </div>
     </motion.aside>
   );

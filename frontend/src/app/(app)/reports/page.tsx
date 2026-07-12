@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
 } from "recharts";
-import { reportsApi, type DashboardSummary } from "@/lib/api";
+import { reportsApi, type DashboardSummary, type Asset } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/hooks/useRole";
 
@@ -31,8 +31,6 @@ const tooltipStyle = {
 
 interface UtilRow  { department: string; total: number; allocated: number; utilization: number }
 interface StatusRow { status: string; count: number }
-interface NearRetirementAsset { id: string; name: string; category: string; warrantyExpiry: string }
-
 export default function ReportsPage() {
   const { user } = useAuth();
   const { canViewFullReports } = useRole();
@@ -40,7 +38,7 @@ export default function ReportsPage() {
   const [summary,      setSummary]      = useState<DashboardSummary | null>(null);
   const [utilization,  setUtilization]  = useState<UtilRow[]>([]);
   const [statusDist,   setStatusDist]   = useState<StatusRow[]>([]);
-  const [nearRetire,   setNearRetire]   = useState<NearRetirementAsset[]>([]);
+  const [nearRetire,   setNearRetire]   = useState<Asset[]>([]);
   const [deptFilter,   setDeptFilter]   = useState("All Departments");
   const [loading,      setLoading]      = useState(true);
 
@@ -177,7 +175,7 @@ export default function ReportsPage() {
 
       {/* Charts row 1 — full analytics only */}
       {canViewFullReports && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <><div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Utilization by Department */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
@@ -246,7 +244,6 @@ export default function ReportsPage() {
           )}
         </motion.div>
       </div>
-      )}
 
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -301,7 +298,7 @@ export default function ReportsPage() {
           ) : (
             <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
               {nearRetire.map((asset, i) => {
-                const expired = new Date(asset.warrantyExpiry) < new Date();
+                const expired = asset.warrantyExpiry ? new Date(asset.warrantyExpiry) < new Date() : false;
                 return (
                   <motion.div
                     key={asset.id}
@@ -310,7 +307,7 @@ export default function ReportsPage() {
                   >
                     <div>
                       <p className="text-[13px] font-medium text-[#e5e2e1]">{asset.name}</p>
-                      <p className="text-[11px] text-[#8e9192]">{asset.category} · {asset.id}</p>
+                      <p className="text-[11px] text-[#8e9192]">{typeof asset.category === "object" ? asset.category.name : asset.category} · {asset.id}</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-[12px] font-semibold ${expired ? "text-red-400" : "text-orange-400"}`}>
@@ -325,7 +322,8 @@ export default function ReportsPage() {
           )}
         </motion.div>
       </div>
-      )} {/* end canViewFullReports charts */}
+      </>
+      )}
 
       {/* Restricted view for EMPLOYEE / DEPT_HEAD */}
       {!canViewFullReports && (
