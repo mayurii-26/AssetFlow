@@ -1,12 +1,14 @@
 "use client";
 import { Bell, Search, ChevronRight, User, Settings, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const breadcrumbMap: Record<string, string> = {
   dashboard: "Dashboard",
@@ -22,7 +24,15 @@ const breadcrumbMap: Record<string, string> = {
 
 export default function TopNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const segments = pathname.split("/").filter(Boolean);
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Signed out successfully");
+    router.replace("/auth/login");
+  };
 
   return (
     <header className="h-16 bg-[#131313]/80 backdrop-blur-xl border-b border-white/8 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
@@ -51,34 +61,43 @@ export default function TopNav() {
           />
         </div>
 
-        {/* Org name */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/8 rounded-full">
-          <div className="w-2 h-2 rounded-full bg-[#00f0ff] animate-pulse" />
-          <span className="text-[12px] text-[#c4c7c8] font-medium tracking-wide">Nexus Corp</span>
-        </div>
+        {/* Org name from auth */}
+        {user?.organization && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/8 rounded-full">
+            <div className="w-2 h-2 rounded-full bg-[#00f0ff] animate-pulse" />
+            <span className="text-[12px] text-[#c4c7c8] font-medium tracking-wide">{user.organization}</span>
+          </div>
+        )}
 
         {/* Notifications bell */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          onClick={() => router.push("/notifications")}
           className="relative w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/8 text-[#8e9192] hover:text-[#e5e2e1] transition-colors"
         >
           <Bell size={15} />
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#00f0ff] rounded-full text-[9px] text-black font-bold flex items-center justify-center">3</span>
         </motion.button>
 
-        {/* User menu */}
+        {/* User menu — real user data */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 focus:outline-none hover:opacity-90 transition-opacity">
             <Avatar className="w-8 h-8 border border-white/15">
-              <AvatarFallback className="bg-[#2a2a2a] text-[#00f0ff] text-[11px] font-bold">AK</AvatarFallback>
+              <AvatarFallback className="bg-[#2a2a2a] text-[#00f0ff] text-[11px] font-bold">
+                {user?.initials ?? "??"}
+              </AvatarFallback>
             </Avatar>
             <div className="hidden md:block text-left">
-              <p className="text-[12px] font-medium text-[#e5e2e1]">Aditya Kumar</p>
-              <p className="text-[10px] text-[#8e9192]">Admin</p>
+              <p className="text-[12px] font-medium text-[#e5e2e1]">{user?.name ?? "Guest"}</p>
+              <p className="text-[10px] text-[#8e9192] capitalize">{user?.role ?? "—"}</p>
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 bg-[#1c1b1b] border-white/10 text-[#e5e2e1]">
+            <div className="px-3 py-2 border-b border-white/8 mb-1">
+              <p className="text-[12px] font-medium text-[#e5e2e1]">{user?.name}</p>
+              <p className="text-[11px] text-[#8e9192]">{user?.email}</p>
+            </div>
             <DropdownMenuItem className="gap-2 text-[13px] focus:bg-white/8 cursor-pointer">
               <User size={14} /> Profile
             </DropdownMenuItem>
@@ -86,7 +105,10 @@ export default function TopNav() {
               <Settings size={14} /> Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-white/8" />
-            <DropdownMenuItem className="gap-2 text-[13px] text-red-400 focus:bg-red-500/10 cursor-pointer">
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="gap-2 text-[13px] text-red-400 focus:bg-red-500/10 cursor-pointer"
+            >
               <LogOut size={14} /> Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
