@@ -1,12 +1,14 @@
-# Node
-node_modules/
-.npm
+# === FRONTEND ===
+frontend/node_modules/
+frontend/.next/
+frontend/out/
 
-# Next.js
-assetflow/.next/
-assetflow/out/
+# === BACKEND ===
+backend/node_modules/
+backend/dist/
+backend/.env
 
-# Env files
+# Env files (anywhere)
 .env
 .env.local
 .env.*.local
